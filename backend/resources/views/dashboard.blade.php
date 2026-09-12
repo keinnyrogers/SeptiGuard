@@ -50,7 +50,7 @@
                 </article>
                 <article class="rounded-2xl border border-slate-800 bg-slate-900 p-6">
                     <p class="text-sm text-slate-400">Open complaints</p>
-                    <p class="mt-4 text-2xl font-bold text-slate-500">0</p>
+                    <p class="mt-4 text-2xl font-bold text-slate-100">{{ $openComplaintsCount }}</p>
                 </article>
             </div>
 
@@ -99,7 +99,7 @@
                 <div class="mt-8 flex flex-wrap gap-4">
                     <a href="{{ route('resident-profile.edit') }}" class="inline-block rounded-lg bg-cyan-400 px-5 py-3 font-semibold text-slate-950 hover:bg-cyan-300">Resident profile</a>
                     <a href="{{ route('septic-system.edit') }}" class="inline-block rounded-lg border border-slate-700 px-5 py-3 font-semibold text-slate-200 hover:border-cyan-400 hover:text-cyan-300">Manage septic system</a>
-                    <a href="{{ route('maintenance-requests.index') }}" class="inline-block rounded-lg border border-slate-700 px-5 py-3 font-semibold text-slate-200 hover:border-cyan-400 hover:text-cyan-300">Maintenance requests</a>
+                    <a href="{{ route('maintenance-requests.index') }}" class="inline-block rounded-lg border border-slate-700 px-5 py-3 font-semibold text-slate-200 hover:border-cyan-400 hover:text-cyan-300">Complaints</a>
                 </div>
             @endif
         </main>

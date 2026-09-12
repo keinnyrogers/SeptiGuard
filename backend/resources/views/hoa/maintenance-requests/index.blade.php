@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>HOA maintenance requests | SeptiGuard</title>
+        <title>HOA complaints | SeptiGuard</title>
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/app.css', 'resources/js/app.js'])
         @endif
@@ -13,7 +13,7 @@
             <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
                 <div>
                     <p class="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-400">SeptiGuard</p>
-                    <h1 class="mt-1 text-xl font-bold">HOA maintenance requests</h1>
+                    <h1 class="mt-1 text-xl font-bold">HOA complaints</h1>
                 </div>
                 <a href="{{ route('dashboard') }}" class="rounded-lg border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:border-cyan-400 hover:text-cyan-300">Dashboard</a>
             </div>
@@ -64,7 +64,7 @@
                     </div>
                 @empty
                     <div class="rounded-2xl border border-slate-800 bg-slate-900 p-8 text-center text-slate-400">
-                        No maintenance requests pending.
+                        No complaints pending.
                     </div>
                 @endforelse
             </section>

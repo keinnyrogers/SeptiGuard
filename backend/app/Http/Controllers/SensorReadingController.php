@@ -30,8 +30,8 @@ class SensorReadingController extends Controller
 
         $fillLevel = (int) $validated['fill_level_percentage'];
         $status = match (true) {
-            $fillLevel >= 90 => 'critical',
-            $fillLevel >= 75 => 'warning',
+            $fillLevel >= 80 => 'critical',
+            $fillLevel >= 70 => 'warning',
             default => 'normal',
         };
 

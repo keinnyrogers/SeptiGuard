@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Complaint;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -13,7 +14,7 @@ class MaintenanceRequestController extends Controller
         abort_unless($request->user()->account_status === 'approved', 403);
 
         return view('maintenance-requests.index', [
-            'requests' => $request->user()->maintenanceRequests()->latest()->get(),
+            'requests' => $request->user()->complaints()->latest()->get(),
         ]);
     }
 
@@ -28,9 +29,13 @@ class MaintenanceRequestController extends Controller
             'description' => ['required', 'string', 'max:2000'],
         ]);
 
-        $request->user()->maintenanceRequests()->create([
-            ...$validated,
-            'status' => 'submitted',
+        $request->user()->complaints()->create([
+            'title' => $validated['title'],
+            'category' => $validated['request_type'],
+            'priority' => $validated['priority'],
+            'description' => $validated['description'],
+            'ticket_code' => Complaint::generateTicketCode(),
+            'status' => 'pending',
         ]);
 
         return redirect()->route('maintenance-requests.index')->with('status', 'Maintenance request submitted.');

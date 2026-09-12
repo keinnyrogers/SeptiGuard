@@ -32,8 +32,9 @@ Route::middleware('auth')->group(function () {
         $septicSystem = $user->septicSystem;
         $latestReading = $septicSystem?->tankReadings()->latest('measured_at')->first();
         $recentReadings = $septicSystem?->tankReadings()->latest('measured_at')->limit(5)->get() ?? collect();
+        $openComplaintsCount = $user->complaints()->whereNotIn('status', ['completed', 'rejected'])->count();
 
-        return view('dashboard', compact('user', 'latestReading', 'recentReadings'));
+        return view('dashboard', compact('user', 'latestReading', 'recentReadings', 'openComplaintsCount'));
     })->name('dashboard');
 
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
@@ -50,5 +51,5 @@ Route::middleware(['auth', 'hoa'])->prefix('hoa')->name('hoa.')->group(function 
     Route::post('/users/{user}/approve', [HoaApprovalController::class, 'approve'])->name('users.approve');
     Route::post('/users/{user}/reject', [HoaApprovalController::class, 'reject'])->name('users.reject');
     Route::get('/maintenance-requests', [HoaMaintenanceRequestController::class, 'index'])->name('maintenance-requests.index');
-    Route::patch('/maintenance-requests/{maintenanceRequest}/status', [HoaMaintenanceRequestController::class, 'updateStatus'])->name('maintenance-requests.update-status');
+    Route::patch('/maintenance-requests/{complaint}/status', [HoaMaintenanceRequestController::class, 'updateStatus'])->name('maintenance-requests.update-status');
 });

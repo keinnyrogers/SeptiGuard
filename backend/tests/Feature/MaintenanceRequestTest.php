@@ -25,10 +25,10 @@ class MaintenanceRequestTest extends TestCase
         ]);
 
         $response->assertRedirect(route('maintenance-requests.index'));
-        $this->assertDatabaseHas('maintenance_requests', [
+        $this->assertDatabaseHas('complaints', [
             'user_id' => $resident->id,
             'title' => 'Tank inspection',
-            'status' => 'submitted',
+            'status' => 'pending',
         ]);
     }
 
@@ -60,12 +60,13 @@ class MaintenanceRequestTest extends TestCase
             'account_status' => 'approved',
         ]);
 
-        $request = $resident->maintenanceRequests()->create([
+        $request = $resident->complaints()->create([
             'title' => 'Tank inspection',
-            'request_type' => 'inspection',
+            'ticket_code' => 'CMP-001',
+            'category' => 'inspection',
             'priority' => 'high',
             'description' => 'Inspection needed',
-            'status' => 'submitted',
+            'status' => 'pending',
         ]);
 
         $response = $this->actingAs($admin)->patch(route('hoa.maintenance-requests.update-status', $request), [
@@ -73,7 +74,7 @@ class MaintenanceRequestTest extends TestCase
         ]);
 
         $response->assertRedirect(route('hoa.maintenance-requests.index'));
-        $this->assertDatabaseHas('maintenance_requests', [
+        $this->assertDatabaseHas('complaints', [
             'id' => $request->id,
             'status' => 'in_progress',
         ]);

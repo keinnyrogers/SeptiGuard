@@ -22,13 +22,36 @@ class SensorReadingApiTest extends TestCase
 
         $response->assertCreated()
             ->assertJsonPath('data.septic_system_id', $system->id)
-            ->assertJsonPath('data.status', 'warning')
+            ->assertJsonPath('data.status', 'critical')
             ->assertJsonPath('data.source', 'sensor');
         $this->assertDatabaseHas('tank_readings', [
             'septic_system_id' => $system->id,
             'fill_level_percentage' => 82,
-            'status' => 'warning',
+            'status' => 'critical',
         ]);
+    }
+
+    public function test_sensor_status_follows_paper_thresholds(): void
+    {
+        $thresholds = [
+            69 => 'normal',
+            70 => 'warning',
+            79 => 'warning',
+            80 => 'critical',
+        ];
+
+        foreach ($thresholds as $fillLevel => $expectedStatus) {
+            $system = SepticSystem::factory()->create([
+                'device_id' => 'ESP32-TEST-'.$fillLevel,
+            ]);
+
+            $response = $this->withHeader('X-Sensor-Key', 'local-demo-sensor-key')->postJson('/api/sensor/readings', [
+                'device_id' => $system->device_id,
+                'fill_level_percentage' => $fillLevel,
+            ]);
+
+            $response->assertCreated()->assertJsonPath('data.status', $expectedStatus);
+        }
     }
 
     public function test_sensor_key_is_required(): void
