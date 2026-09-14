@@ -31,6 +31,14 @@ class SepticSystem extends Model
         return $this->hasMany(TankReading::class);
     }
 
+    /**
+     * @return HasMany<Prediction, SepticSystem>
+     */
+    public function predictions(): HasMany
+    {
+        return $this->hasMany(Prediction::class);
+    }
+
     protected function casts(): array
     {
         return [
