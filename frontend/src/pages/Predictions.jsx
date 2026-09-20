@@ -97,9 +97,9 @@ const NAV = [
   { icon: Home,        label: "Dashboard", path: "/dashboard" },
   { icon: Activity,    label: "Monitor", path: "/monitor" },
   { icon: Bot,         label: "Predict", path: "/predict", active: true },
-  { icon: FileWarning, label: "Complaints" },
-  { icon: Wrench,      label: "Maintain" },
-  { icon: Bell,        label: "Alerts" },
+  { icon: FileWarning, label: "Complaints", path: "/complaints" },
+  { icon: Wrench,      label: "Maintain", path: "/maintain" },
+  { icon: Bell,        label: "Alerts", path: "/alerts" },
   { icon: UserRound,   label: "Profile" },
 ];
 
