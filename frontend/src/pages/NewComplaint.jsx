@@ -53,7 +53,7 @@ const NAV = [
   { icon: FileWarning, label: "Complaints", path: "/complaints", active: true },
   { icon: Wrench,      label: "Maintain", path: "/maintain" },
   { icon: Bell,        label: "Alerts", path: "/alerts" },
-  { icon: UserRound,   label: "Profile" },
+  { icon: UserRound,   label: "Profile", path: "/profile" },
 ];
 
 const DRAFT_KEY = "septiguard_complaint_draft";
@@ -203,7 +203,7 @@ export default function NewComplaint() {
       {open && <button className="fixed inset-0 z-30 bg-background/80 lg:hidden" onClick={() => setOpen(false)} />}
 
       {/* ======================= MAIN ======================= */}
-      <div className="min-w-0 flex-1 lg:ml-24">
+      <div className="page-transition min-w-0 flex-1 lg:ml-24">
         <header className="flex h-20 items-center justify-between border-b border-border px-4 sm:px-7">
           <div className="flex items-center gap-3">
             <button className="rounded-md border border-border p-2 lg:hidden" onClick={() => setOpen(true)}>
@@ -221,7 +221,7 @@ export default function NewComplaint() {
           )}
         </header>
 
-        <main className="mx-auto max-w-[1200px] space-y-5 p-4 sm:p-7">
+        <main className="mx-auto max-w-[1440px] space-y-5 p-4 sm:p-7">
           <button
             onClick={() => navigate("/complaints")}
             className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground"

@@ -7,7 +7,7 @@
  */
 
 export const API_BASE_URL =
-  import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+  import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000";
 
 const TOKEN_STORAGE_KEY = "septiguard_token";
 const USER_STORAGE_KEY = "septiguard_user";
@@ -44,7 +44,7 @@ export async function loginRequest(email, password) {
     });
   } catch {
     throw new Error(
-      "Could not reach the SeptiGuard server. Make sure the backend is running.",
+      "Could not reach the SeptiGuard server.",
     );
   }
 

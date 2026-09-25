@@ -9,7 +9,7 @@ const SAMPLE_DATA = { level: 70, daysUntilFull: 12, location: "Blk 12, Lot 4 · 
   { icon: Check, title: "Sensor calibration complete", detail: "All sensors operating within normal range", tag: "Normal", tone: "success", time: "Yesterday" },
   { icon: Zap, title: "Firmware updated to v2.1.4", detail: "Improved accuracy and battery efficiency", tag: "System", tone: "muted", time: "2 days ago" },
 ] };
-const NAV = [{icon:Home,label:"Dashboard",path:"/dashboard",active:true},{icon:Activity,label:"Monitor",path:"/monitor"},{icon:Bot,label:"Predict",path:"/predict"},{icon:FileWarning,label:"Complaints",path:"/complaints"},{icon:Wrench,label:"Maintain",path:"/maintain"},{icon:Bell,label:"Alerts",path:"/alerts"},{icon:UserRound,label:"Profile"}];
+const NAV = [{icon:Home,label:"Dashboard",path:"/dashboard",active:true},{icon:Activity,label:"Monitor",path:"/monitor"},{icon:Bot,label:"Predict",path:"/predict"},{icon:FileWarning,label:"Complaints",path:"/complaints"},{icon:Wrench,label:"Maintain",path:"/maintain"},{icon:Bell,label:"Alerts",path:"/alerts"},{icon:UserRound,label:"Profile",path:"/profile"}];
 
 export default function Dashboard() {
   const { user, logout } = useAuth(); const navigate = useNavigate(); const [open,setOpen]=useState(false); const first=user?.name?.split(" ")[0] ?? "Resident";

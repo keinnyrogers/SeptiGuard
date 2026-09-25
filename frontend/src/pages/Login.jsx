@@ -98,7 +98,7 @@ export default function Login() {
             <p className="font-display text-lg font-bold tracking-tight text-foreground">
               SeptiGuard
             </p>
-            <p className="text-xs text-muted-foreground">Resident Portal · v1.0</p>
+            <p className="text-xs text-muted-foreground">SeptiGuard Portal · v1.0</p>
           </div>
         </div>
 
@@ -176,7 +176,7 @@ export default function Login() {
               <p className="font-display text-base font-bold text-foreground">
                 SeptiGuard
               </p>
-              <p className="text-xs text-muted-foreground">Resident Portal · v1.0</p>
+              <p className="text-xs text-muted-foreground">SeptiGuard Portal · v1.0</p>
             </div>
           </div>
 

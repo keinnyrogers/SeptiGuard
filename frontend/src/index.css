@@ -119,3 +119,104 @@
     linear-gradient(to bottom, color-mix(in oklab, var(--foreground) 4%, transparent) 1px, transparent 1px);
   background-size: 40px 40px;
 }
+
+@keyframes septiguard-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes septiguard-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes septiguard-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes septiguard-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes septiguard-menu-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+.dropdown-content[data-state="open"],
+.select-content[data-state="open"],
+.popover-content[data-state="open"] {
+  animation: septiguard-menu-in 160ms ease-out both;
+}
+
+.dropdown-content[data-state="closed"],
+.select-content[data-state="closed"],
+.popover-content[data-state="closed"] {
+  animation: septiguard-menu-out 120ms ease-in both;
+}
+
+.sheet-content-right[data-state="open"] {
+  animation: septiguard-sheet-in 300ms ease-out both;
+}
+
+.sheet-overlay[data-state="open"] {
+  animation: septiguard-overlay-in 200ms ease-out both;
+}
+
+.page-transition {
+  animation: septiguard-page-enter 180ms ease-out both;
+}
+
+.tank-banner-location {
+  position: relative;
+}
+
+@media (min-width: 640px) {
+  .tank-banner-location {
+    position: absolute;
+    top: 50%;
+    right: 20px;
+    transform: translateY(-50%);
+  }
+}
+
+/* Covers the compact resident dashboard shell without changing its JSX. */
+.min-h-screen > aside ~ .min-w-0.flex-1:not(.page-transition) {
+  animation: septiguard-page-enter 180ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-transition {
+    animation: none;
+  }
+}

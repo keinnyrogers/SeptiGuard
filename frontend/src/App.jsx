@@ -8,6 +8,10 @@ import Complaints from "./pages/Complaints.jsx";
 import NewComplaint from "./pages/NewComplaint.jsx";
 import Maintain from "./pages/Maintain.jsx";
 import Alerts from "./pages/Alerts.jsx";
+import Profile from "./pages/Profile.jsx";
+import AdminDashboard from "./pages/AdminDashboard.jsx";
+import AdminTanks from "./pages/AdminTanks.jsx";
+import AdminComplaints from "./pages/AdminComplaints.jsx";
 
 export default function App() {
   return (
@@ -21,6 +25,10 @@ export default function App() {
       <Route path="/complaints/new" element={<NewComplaint />} />
       <Route path="/maintain" element={<Maintain />} />
       <Route path="/alerts" element={<Alerts />} />
+      <Route path="/profile" element={<Profile />} />
+      <Route path="/admin/dashboard" element={<AdminDashboard />} />
+      <Route path="/admin/tanks" element={<AdminTanks />} />
+      <Route path="/admin/complaints" element={<AdminComplaints />} />
     </Routes>
   );
 }
