@@ -52,7 +52,7 @@ const NAV = [
   { icon: Gauge, label: "Dashboard", to: "/admin/dashboard" },
   { icon: Boxes, label: "Tanks", active: true },
   { icon: MessageSquare, label: "Complaints", to: "/admin/complaints" },
-  { icon: Users, label: "Residents" },
+  { icon: Users, label: "Residents", to: "/admin/residents" },
   { icon: FileText, label: "Reports" },
   { icon: Cpu, label: "Devices" },
   { icon: Settings, label: "Settings" },

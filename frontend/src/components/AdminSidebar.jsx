@@ -14,8 +14,8 @@ import {
 const NAV = [
   { icon: Gauge, label: "Dashboard", to: "/admin/dashboard" },
   { icon: Boxes, label: "Tanks", to: "/admin/tanks" },
-  { icon: MessageSquare, label: "Complaints", to: "/admin/complaints", active: true },
-  { icon: Users, label: "Residents" },
+  { icon: MessageSquare, label: "Complaints", to: "/admin/complaints" },
+  { icon: Users, label: "Residents", to: "/admin/residents" },
   { icon: FileText, label: "Reports" },
   { icon: Cpu, label: "Devices" },
   { icon: Settings, label: "Settings" },
@@ -28,6 +28,7 @@ export function AdminSidebar({
   navigate = (to) => window.location.assign(to),
   user,
   signOut = () => {},
+  active = "Complaints",
   soon = (label) => window.alert(`${label} is coming soon`),
 }) {
   return (
@@ -46,16 +47,21 @@ export function AdminSidebar({
 
       <nav className="flex flex-1 flex-col gap-1">
         {NAV.map((item) => (
+          (() => {
+            const isActive = item.label === active;
+            return (
           <button
             key={item.label}
-            onClick={() => (item.active ? setOpen(false) : item.to ? navigate(item.to) : soon(item.label))}
+            onClick={() => (isActive ? setOpen(false) : item.to ? navigate(item.to) : soon(item.label))}
             className={`flex h-10 items-center gap-3 rounded-md px-3 text-xs font-medium ${
-              item.active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"
             }`}
           >
             <item.icon className="h-4 w-4" />
             {item.label}
           </button>
+            );
+          })()
         ))}
       </nav>
 

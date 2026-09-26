@@ -192,6 +192,7 @@ export default function AdminComplaints() {
         setOpen={setMenuOpen}
         navigate={navigate}
         user={user}
+        active="Complaints"
         signOut={async () => {
           await logout();
           navigate("/");

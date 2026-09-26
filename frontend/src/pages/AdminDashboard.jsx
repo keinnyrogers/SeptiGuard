@@ -33,7 +33,7 @@ const SAMPLE_ADMIN_DATA = {
 
 const NAV = [
   { icon: Gauge, label: "Dashboard", active: true }, { icon: Boxes, label: "Tanks", to: "/admin/tanks" },
-  { icon: MessageSquare, label: "Complaints", to: "/admin/complaints" }, { icon: Users, label: "Residents" },
+  { icon: MessageSquare, label: "Complaints", to: "/admin/complaints" }, { icon: Users, label: "Residents", to: "/admin/residents" },
   { icon: FileText, label: "Reports" }, { icon: Cpu, label: "Devices" }, { icon: Settings, label: "Settings" },
 ];
 

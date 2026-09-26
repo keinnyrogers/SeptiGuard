@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
 import Login from "./pages/Login.jsx";
 import Register from "./pages/Register.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
@@ -12,10 +12,14 @@ import Profile from "./pages/Profile.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import AdminTanks from "./pages/AdminTanks.jsx";
 import AdminComplaints from "./pages/AdminComplaints.jsx";
+import AdminResidents from "./pages/AdminResidents.jsx";
 
 export default function App() {
+  const location = useLocation();
+
   return (
-    <Routes>
+    <div key={location.pathname} className="route-transition">
+    <Routes location={location}>
       <Route path="/" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/dashboard" element={<Dashboard />} />
@@ -29,6 +33,8 @@ export default function App() {
       <Route path="/admin/dashboard" element={<AdminDashboard />} />
       <Route path="/admin/tanks" element={<AdminTanks />} />
       <Route path="/admin/complaints" element={<AdminComplaints />} />
+      <Route path="/admin/residents" element={<AdminResidents />} />
     </Routes>
+    </div>
   );
 }
