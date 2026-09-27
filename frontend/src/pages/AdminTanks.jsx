@@ -1,10 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import {
-  Bell, Boxes, ChevronDown, ChevronLeft, ChevronRight, Clock,
-  Cpu, FileText, Gauge, LayoutGrid, List, LogOut, MapPin, Menu, MessageSquare,
-  Search, Settings, ShieldCheck, Users, X,
+  Bell, ChevronDown, ChevronLeft, ChevronRight, Clock,
+  LayoutGrid, List, MapPin, Menu, Search, Settings,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { AdminSidebar } from "@/components/AdminSidebar";
 import { useAuth } from "../context/AuthContext.jsx";
 
 // ---------- Status threshold rules (single source of truth) ----------
@@ -48,16 +48,6 @@ const TANKS = LEVELS.map((level, i) => {
 });
 
 const PER_PAGE = 8;
-const NAV = [
-  { icon: Gauge, label: "Dashboard", to: "/admin/dashboard" },
-  { icon: Boxes, label: "Tanks", active: true },
-  { icon: MessageSquare, label: "Complaints", to: "/admin/complaints" },
-  { icon: Users, label: "Residents", to: "/admin/residents" },
-  { icon: FileText, label: "Reports" },
-  { icon: Cpu, label: "Devices" },
-  { icon: Settings, label: "Settings" },
-];
-
 export default function AdminTanks() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -95,31 +85,7 @@ export default function AdminTanks() {
 
   return (
     <div className="min-h-screen bg-background text-foreground lg:flex">
-      <aside className={`${open ? "flex" : "hidden"} fixed inset-y-0 left-0 z-40 w-52 flex-col border-r border-border bg-card px-3 py-5 lg:flex`}>
-        <div className="mb-5 flex items-center justify-between px-1">
-          <div className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/15"><ShieldCheck className="h-5 w-5 text-primary" /></span>
-            <strong className="font-display text-sm">SeptiGuard</strong>
-          </div>
-          <button className="rounded-md p-2 text-muted-foreground hover:text-foreground lg:hidden" onClick={() => setOpen(false)} aria-label="Close menu"><X className="h-4 w-4" /></button>
-        </div>
-        <nav className="flex flex-1 flex-col gap-1">
-          {NAV.map((item) => (
-            <button key={item.label} onClick={() => item.active ? setOpen(false) : item.to ? navigate(item.to) : soon(item.label)}
-              className={`flex h-10 items-center gap-3 rounded-md px-3 text-xs font-medium ${item.active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
-              <item.icon className="h-4 w-4" />{item.label}
-            </button>
-          ))}
-        </nav>
-        <div className="flex items-center gap-2 border-t border-border pt-4">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-[10px] text-primary">AU</span>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[11px] font-medium">{user?.name || "Admin User"}</p>
-            <p className="text-[9px] text-muted-foreground">HOA Officer</p>
-          </div>
-          <button onClick={signOut} title="Sign out" className="p-2 text-muted-foreground hover:text-danger"><LogOut className="h-4 w-4" /></button>
-        </div>
-      </aside>
+      <AdminSidebar open={open} setOpen={setOpen} navigate={navigate} user={user} active="Tanks" signOut={signOut} soon={soon} />
       {open && <button className="fixed inset-0 z-30 bg-background/80 lg:hidden" onClick={() => setOpen(false)} aria-label="Close menu" />}
       <div className="min-w-0 flex-1 lg:ml-52">
         <header className="flex h-20 items-center justify-between border-b border-border px-4 sm:px-7">

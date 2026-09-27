@@ -16,7 +16,7 @@ const NAV = [
   { icon: Boxes, label: "Tanks", to: "/admin/tanks" },
   { icon: MessageSquare, label: "Complaints", to: "/admin/complaints" },
   { icon: Users, label: "Residents", to: "/admin/residents" },
-  { icon: FileText, label: "Reports" },
+  { icon: FileText, label: "Reports", to: "/admin/reports" },
   { icon: Cpu, label: "Devices" },
   { icon: Settings, label: "Settings" },
 ];

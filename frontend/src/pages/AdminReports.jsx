@@ -1,0 +1,251 @@
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  BarChart3,
+  CalendarDays,
+  ChevronDown,
+  CircleAlert,
+  Download,
+  FileBarChart,
+  FileDown,
+  Menu,
+  SlidersHorizontal,
+  Wrench,
+} from "lucide-react";
+import { AdminSidebar } from "@/components/AdminSidebar";
+import { useAuth } from "../context/AuthContext.jsx";
+import { SAMPLE_DATA, CATEGORY_LABELS, STATUS_LABELS } from "@/data/complaints";
+import { SAMPLE_RESIDENTS } from "@/data/residents";
+import { DATE_RANGES, REPORT_TYPES, SAMPLE_REPORTS } from "@/data/reports";
+
+const CATEGORY_KEYS = ["septic_tank", "garbage", "street_lights", "road_damage", "noise", "water_supply", "other"];
+const STATUS_KEYS = ["pending", "in_progress", "resolved"];
+const STATUS_COLORS = {
+  pending: "var(--danger)",
+  in_progress: "var(--warning)",
+  resolved: "var(--success)",
+};
+
+function formatDate(value) {
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "2-digit", year: "numeric" }).format(new Date(value));
+}
+
+function downloadPlaceholder(reportName) {
+  const content = `%PDF-1.4\nSeptiGuard report placeholder: ${reportName}\n%%EOF`;
+  const url = URL.createObjectURL(new Blob([content], { type: "application/pdf" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${reportName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.pdf`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function DonutChart({ counts }) {
+  const total = STATUS_KEYS.reduce((sum, key) => sum + counts[key], 0);
+  const radius = 42;
+  const circumference = 2 * Math.PI * radius;
+  let offset = 0;
+
+  return (
+    <div className="relative h-36 w-36 shrink-0">
+      <svg viewBox="0 0 112 112" className="h-full w-full -rotate-90" aria-label={`Complaint status breakdown, ${total} total`} role="img">
+        <circle cx="56" cy="56" r={radius} fill="none" stroke="var(--muted)" strokeWidth="14" />
+        {STATUS_KEYS.map((key) => {
+          const length = total ? (counts[key] / total) * circumference : 0;
+          const circle = (
+            <circle
+              key={key}
+              cx="56"
+              cy="56"
+              r={radius}
+              fill="none"
+              stroke={STATUS_COLORS[key]}
+              strokeWidth="14"
+              strokeDasharray={`${length} ${circumference - length}`}
+              strokeDashoffset={-offset}
+            />
+          );
+          offset += length;
+          return circle;
+        })}
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="font-display text-2xl font-bold">{total}</span>
+        <span className="text-[10px] text-muted-foreground">Total</span>
+      </div>
+    </div>
+  );
+}
+
+export default function AdminReports() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [dateRange, setDateRange] = useState("180");
+  const [reportType, setReportType] = useState("All");
+
+  const categoryCounts = useMemo(
+    () => Object.fromEntries(CATEGORY_KEYS.map((key) => [key, SAMPLE_DATA.filter((item) => item.category === key).length])),
+    [],
+  );
+  const statusCounts = useMemo(
+    () => Object.fromEntries(STATUS_KEYS.map((key) => [key, SAMPLE_DATA.filter((item) => item.status === key).length])),
+    [],
+  );
+  const tanksWithReadings = SAMPLE_RESIDENTS.filter((resident) => resident.fill_level != null);
+  const averageFill = tanksWithReadings.length
+    ? Math.round(tanksWithReadings.reduce((sum, resident) => sum + resident.fill_level, 0) / tanksWithReadings.length)
+    : 0;
+  const now = new Date();
+  const desludgingEvents = SAMPLE_DATA.filter((item) => {
+    if (item.category !== "septic_tank" || item.status !== "resolved" || !item.resolved_at) return false;
+    const resolved = new Date(item.resolved_at);
+    return resolved.getUTCFullYear() === now.getUTCFullYear() && resolved.getUTCMonth() === now.getUTCMonth();
+  }).length;
+  const unresolved = statusCounts.pending + statusCounts.in_progress;
+  const maxCategory = Math.max(...Object.values(categoryCounts), 1);
+
+  const visibleReports = useMemo(() => {
+    const cutoff = dateRange === "all" ? null : Date.now() - Number(dateRange) * 24 * 60 * 60 * 1000;
+    return SAMPLE_REPORTS.filter((report) => {
+      const inRange = cutoff == null || new Date(report.created_at).getTime() >= cutoff;
+      const matchesType = reportType === "All" || report.type === reportType;
+      return inRange && matchesType;
+    });
+  }, [dateRange, reportType]);
+
+  const stats = [
+    { label: "Total Reports Generated", value: SAMPLE_REPORTS.length, sub: "All recorded reports", icon: FileBarChart, chip: "bg-primary/15 text-primary" },
+    { label: "Avg Community Fill Level", value: `${averageFill}%`, sub: `Across ${tanksWithReadings.length} tanks`, icon: BarChart3, chip: "bg-primary/15 text-primary" },
+    { label: "Desludging Events", value: desludgingEvents, sub: "Resolved this month", icon: Wrench, chip: "bg-warning/15 text-warning" },
+    { label: "Unresolved Complaints", value: unresolved, sub: "Pending or in progress", icon: CircleAlert, chip: "bg-danger/15 text-danger" },
+  ];
+  const selectClass = "h-10 appearance-none rounded-md border border-input bg-card pl-9 pr-9 text-sm text-foreground outline-none focus:border-ring";
+  const signOut = async () => {
+    await logout();
+    navigate("/");
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      <AdminSidebar open={menuOpen} setOpen={setMenuOpen} navigate={navigate} user={user} active="Reports" signOut={signOut} />
+      <button type="button" onClick={() => setMenuOpen(true)} aria-label="Open menu" className="fixed left-3 top-3 z-30 rounded-md border border-border bg-card p-2 lg:hidden"><Menu className="h-4 w-4" /></button>
+
+      <main className="min-w-0 px-5 py-6 md:px-8 lg:ml-52">
+        <div>
+          <p className="text-sm text-muted-foreground">Admin Portal <span className="mx-1">›</span><span className="text-foreground">Reports</span></p>
+          <h1 className="mt-1 text-2xl font-bold md:text-3xl">Reports &amp; Analytics</h1>
+        </div>
+
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {stats.map((stat) => (
+            <article key={stat.label} className="rounded-lg border border-border bg-card p-4">
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-sm text-muted-foreground">{stat.label}</span>
+                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${stat.chip}`}><stat.icon className="h-4 w-4" /></span>
+              </div>
+              <p className="mt-3 font-display text-3xl font-bold">{stat.value}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{stat.sub}</p>
+            </article>
+          ))}
+        </div>
+
+        <div className="mt-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <label className="relative">
+              <span className="sr-only">Date Range</span>
+              <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <select value={dateRange} onChange={(event) => setDateRange(event.target.value)} className={`${selectClass} w-full sm:w-48`}>
+                {DATE_RANGES.map((range) => <option key={range.value} value={range.value}>Date Range: {range.label}</option>)}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            </label>
+            <label className="relative">
+              <span className="sr-only">Report Type</span>
+              <SlidersHorizontal className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <select value={reportType} onChange={(event) => setReportType(event.target.value)} className={`${selectClass} w-full sm:w-52`}>
+                {REPORT_TYPES.map((type) => <option key={type} value={type}>Report Type: {type}</option>)}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            </label>
+          </div>
+          <button type="button" onClick={() => downloadPlaceholder("SeptiGuard Reports and Analytics")} className="flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:opacity-90">
+            <Download className="h-4 w-4" /> Export PDF
+          </button>
+        </div>
+
+        <div className="mt-6 grid gap-5 xl:grid-cols-[1.25fr_1fr]">
+          <section className="rounded-lg border border-border bg-card p-5">
+            <h2 className="text-base font-semibold">Complaints by Category</h2>
+            <p className="mt-1 text-xs text-muted-foreground">Distribution across the seven complaint categories</p>
+            <div className="mt-5 space-y-3">
+              {CATEGORY_KEYS.map((key) => (
+                <div key={key} className="grid grid-cols-[96px_1fr_24px] items-center gap-3 sm:grid-cols-[120px_1fr_28px]">
+                  <span className="truncate text-xs">{CATEGORY_LABELS[key]}</span>
+                  <div className="h-5 overflow-hidden rounded bg-muted">
+                    <div className="h-full min-w-0 rounded bg-primary" style={{ width: `${(categoryCounts[key] / maxCategory) * 100}%` }} />
+                  </div>
+                  <span className="text-right text-xs font-medium">{categoryCounts[key]}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-border bg-card p-5">
+            <h2 className="text-base font-semibold">Complaint Status Breakdown</h2>
+            <p className="mt-1 text-xs text-muted-foreground">Current status of all {SAMPLE_DATA.length} complaints</p>
+            <div className="mt-6 flex flex-col items-center justify-center gap-6 sm:flex-row">
+              <DonutChart counts={statusCounts} />
+              <div className="w-full max-w-xs space-y-3">
+                {STATUS_KEYS.map((key) => {
+                  const percent = SAMPLE_DATA.length ? Math.round((statusCounts[key] / SAMPLE_DATA.length) * 100) : 0;
+                  return (
+                    <div key={key} className="grid grid-cols-[1fr_auto_auto] items-center gap-3 text-sm">
+                      <span className="flex items-center gap-2"><span className={`h-2.5 w-2.5 rounded-full ${key === "pending" ? "bg-danger" : key === "in_progress" ? "bg-warning" : "bg-success"}`} />{STATUS_LABELS[key]}</span>
+                      <strong>{statusCounts[key]}</strong>
+                      <span className="w-9 text-right text-xs text-muted-foreground">{percent}%</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <section className="mt-6 overflow-hidden rounded-lg border border-border bg-card">
+          <div className="p-5">
+            <h2 className="text-base font-semibold">Recent Reports</h2>
+            <p className="mt-1 text-xs text-muted-foreground">Generated PDF reports for the selected period</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-sm">
+              <thead>
+                <tr className="border-y border-border text-left text-[11px] uppercase text-muted-foreground">
+                  <th className="px-5 py-3 font-medium">Report Name</th>
+                  <th className="px-5 py-3 font-medium">Type</th>
+                  <th className="px-5 py-3 font-medium">Generated By</th>
+                  <th className="px-5 py-3 font-medium">Date</th>
+                  <th className="px-5 py-3 text-right font-medium">Download</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleReports.map((report) => (
+                  <tr key={report.id} className="border-b border-border last:border-0 hover:bg-muted/40">
+                    <td className="px-5 py-4"><span className="flex items-center gap-2 font-medium"><FileBarChart className="h-4 w-4 shrink-0 text-primary" />{report.report_name}</span></td>
+                    <td className="px-5 py-4 text-muted-foreground">{report.type}</td>
+                    <td className="px-5 py-4">{report.generated_by}</td>
+                    <td className="px-5 py-4 text-muted-foreground">{formatDate(report.created_at)}</td>
+                    <td className="px-5 py-4 text-right">
+                      <button type="button" onClick={() => downloadPlaceholder(report.report_name)} aria-label={`Download ${report.report_name} PDF`} title="Download PDF" className="rounded-md p-2 text-primary hover:bg-primary/10"><FileDown className="h-4 w-4" /></button>
+                    </td>
+                  </tr>
+                ))}
+                {visibleReports.length === 0 && <tr><td colSpan={5} className="p-10 text-center text-muted-foreground">No reports match the selected filters.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+}

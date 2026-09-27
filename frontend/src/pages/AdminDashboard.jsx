@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Bell, Boxes, ChevronRight, CircleAlert, ClipboardList, Cpu,
-  FileText, Gauge, LogOut, MapPin, Menu, MessageSquare, Settings, ShieldCheck,
-  Users, X,
+  Bell, Boxes, ChevronRight, CircleAlert, ClipboardList, Gauge,
+  MapPin, Menu, Settings,
 } from "lucide-react";
+import { AdminSidebar } from "@/components/AdminSidebar";
 import { useAuth } from "../context/AuthContext.jsx";
 
 const SAMPLE_ADMIN_DATA = {
@@ -31,12 +31,6 @@ const SAMPLE_ADMIN_DATA = {
   ],
 };
 
-const NAV = [
-  { icon: Gauge, label: "Dashboard", active: true }, { icon: Boxes, label: "Tanks", to: "/admin/tanks" },
-  { icon: MessageSquare, label: "Complaints", to: "/admin/complaints" }, { icon: Users, label: "Residents", to: "/admin/residents" },
-  { icon: FileText, label: "Reports" }, { icon: Cpu, label: "Devices" }, { icon: Settings, label: "Settings" },
-];
-
 export default function AdminDashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -53,11 +47,7 @@ export default function AdminDashboard() {
   const signOut = async () => { await logout(); navigate("/"); };
 
   return <div className="min-h-screen bg-background text-foreground lg:flex">
-    <aside className={`${open ? "flex" : "hidden"} fixed inset-y-0 left-0 z-40 w-52 flex-col border-r border-border bg-card px-3 py-5 lg:flex`}>
-      <div className="mb-5 flex items-center justify-between px-1"><div className="flex items-center gap-2"><span className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/15"><ShieldCheck className="h-5 w-5 text-primary"/></span><strong className="font-display text-sm">SeptiGuard</strong></div><button className="lg:hidden" onClick={()=>setOpen(false)} aria-label="Close menu"><X className="h-4 w-4"/></button></div>
-      <nav className="flex flex-1 flex-col gap-1">{NAV.map(item=><button key={item.label} onClick={()=>item.to?navigate(item.to):item.active?setOpen(false):soon(item.label)} className={`flex h-10 items-center gap-3 rounded-md px-3 text-xs font-medium ${item.active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}><item.icon className="h-4 w-4"/>{item.label}</button>)}</nav>
-      <div className="flex items-center gap-2 border-t border-border pt-4"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-[10px] text-primary">AU</span><div className="min-w-0 flex-1"><p className="truncate text-[11px] font-medium">{user?.name || "Admin User"}</p><p className="text-[9px] text-muted-foreground">HOA Officer</p></div><button onClick={signOut} title="Sign out" className="p-2 text-muted-foreground hover:text-danger"><LogOut className="h-4 w-4"/></button></div>
-    </aside>
+    <AdminSidebar open={open} setOpen={setOpen} navigate={navigate} user={user} active="Dashboard" signOut={signOut} soon={soon} />
     {open&&<button className="fixed inset-0 z-30 bg-background/80 lg:hidden" onClick={()=>setOpen(false)} aria-label="Close menu"/>}
     <div className="page-transition min-w-0 flex-1 lg:ml-52">
       <header className="flex h-20 items-center justify-between border-b border-border px-4 sm:px-7"><div className="flex items-center gap-3"><button className="rounded-md border border-border p-2 lg:hidden" onClick={()=>setOpen(true)} aria-label="Open menu"><Menu className="h-4 w-4"/></button><div><p className="text-[10px] text-muted-foreground">Admin Portal <span className="px-1">›</span> Dashboard</p><h1 className="mt-1 font-display text-xl font-bold">Dashboard</h1></div></div><div className="flex items-center gap-2"><span className="hidden items-center gap-2 rounded-full bg-muted px-3 py-2 text-[10px] sm:flex"><i className="h-2 w-2 rounded-full bg-success"/>All Systems Online</span><button onClick={()=>soon("Notifications")} className="relative rounded-full bg-muted p-2" aria-label="Notifications"><Bell className="h-4 w-4"/><b className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[8px]">5</b></button><button onClick={()=>soon("Settings")} className="rounded-full bg-muted p-2" aria-label="Settings"><Settings className="h-4 w-4"/></button></div></header>

@@ -13,6 +13,7 @@ import AdminDashboard from "./pages/AdminDashboard.jsx";
 import AdminTanks from "./pages/AdminTanks.jsx";
 import AdminComplaints from "./pages/AdminComplaints.jsx";
 import AdminResidents from "./pages/AdminResidents.jsx";
+import AdminReports from "./pages/AdminReports.jsx";
 
 export default function App() {
   const location = useLocation();
@@ -34,6 +35,7 @@ export default function App() {
       <Route path="/admin/tanks" element={<AdminTanks />} />
       <Route path="/admin/complaints" element={<AdminComplaints />} />
       <Route path="/admin/residents" element={<AdminResidents />} />
+      <Route path="/admin/reports" element={<AdminReports />} />
     </Routes>
     </div>
   );
