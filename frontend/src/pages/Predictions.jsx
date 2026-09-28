@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine,
 } from "recharts";
 import {
-  Activity, ArrowUpRight, Bell, Bot, CalendarDays, ChevronRight,
-  Droplets, FileWarning, Gauge, Home, LogOut, Menu, Settings,
-  ShieldCheck, Sparkles, TrendingUp, UserRound, Users, Wrench,
+  Activity, ArrowUpRight, Bell, Bot, Box, CalendarDays, ChevronRight,
+  Clock, Droplets, FileWarning, Gauge, Home, LogOut, Menu,
+  ShieldCheck, TrendingUp, UserRound, Wrench,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
 
@@ -20,45 +21,47 @@ import { useAuth } from "../context/AuthContext.jsx";
    ng backend mo i-compute:
 
      predictedDate / daysRemaining  -> FastAPI Linear Regression
-     confidence                     -> R² score ng model
-     accuracy / errorDays / samples -> validation metrics
-     weeklyGrowth                   -> galing sa tank_readings
-     fillRate                       -> daily_fill_rate sa predictions table
+     confidence                     -> predictions.confidence (R²)
+     readingsUsed                   -> count ng tank_readings na ginamit
+     weeklyGrowth / fillRate        -> daily_fill_rate sa predictions table
      avgDailyInflow                 -> daily_fill_rate% x capacity_liters
-     householdSize                  -> resident_profiles
-     lastPumpOut                    -> maintenance records
+     capacity / tankType            -> septic_systems
+     lastPumpOut                    -> septic_systems.last_maintenance_date
 
-   NOTE: Tinanggal ko yung "Weather Impact" card kasi walang
-   weather data source ang system. Pinalitan ng Fill Rate.
-   Kung gusto mo talaga ibalik, kailangan mo ng weather API
-   at i-document mo sa paper.
+   CRITICAL THRESHOLD = 80% (single source of truth):
+     >= 80% critical, >= 70% warning, < 70% normal
+
+   NOTE: Tinanggal ang Weather Impact, Household size, at ang
+   accuracy/error/samples metrics kasi walang data source sa schema.
 ================================================================== */
 
 const SAMPLE_DATA = {
-  modelVersion: "v3.2",
-  modelUpdated: "2h ago",
+  updated: "2h ago",
   confidence: 94,
 
-  predictedDate: { month: "MAY", day: "24", year: "2026" },
-  predictedFullText: "Monday, May 24, 2026",
-  daysRemaining: 12,
-  weeklyGrowth: 5.2,
-  modelWindow: "90-day model",
+  predictedDate: { month: "MAR", day: "18", year: "2026" },
+  predictedFullText: "Wednesday, March 18, 2026",
+  daysRemaining: 10,
+  weeklyGrowth: 7.0,
+  dataWindow: "Last 30 days of readings",
 
-  accuracy: 94.2,
-  errorDays: 1.8,
-  samples: "2.4k",
+  readingsUsed: 412,
+  fillRate: 1.0,
 
   /* historical = solid cyan, predicted = dashed amber.
-     Magkasabay sila sa junction point para dikit ang linya. */
+     Magkasabay sila sa junction point (Mar 8) para dikit ang linya. */
   curve: [
-    { date: "Mar 3",  historical: 55, predicted: null },
-    { date: "Mar 5",  historical: 60, predicted: null },
-    { date: "Mar 7",  historical: 66, predicted: null },
+    { date: "Mar 1",  historical: 63, predicted: null },
+    { date: "Mar 3",  historical: 65, predicted: null },
+    { date: "Mar 5",  historical: 67, predicted: null },
+    { date: "Mar 7",  historical: 69, predicted: null },
     { date: "Mar 8",  historical: 70, predicted: 70   },
-    { date: "Mar 9",  historical: null, predicted: 75 },
-    { date: "Mar 11", historical: null, predicted: 81 },
-    { date: "Mar 13", historical: null, predicted: 87 },
+    { date: "Mar 10", historical: null, predicted: 72 },
+    { date: "Mar 12", historical: null, predicted: 74 },
+    { date: "Mar 14", historical: null, predicted: 76 },
+    { date: "Mar 16", historical: null, predicted: 78 },
+    { date: "Mar 18", historical: null, predicted: 80 },
+    { date: "Mar 20", historical: null, predicted: 82 },
   ],
 
   recommendations: [
@@ -67,29 +70,29 @@ const SAMPLE_DATA = {
       title: "Schedule pump-out",
       badge: "URGENT",
       tone: "urgent",
-      detail: "Book service by March 22 to avoid overflow risk",
+      detail: "Book service before March 18 to avoid overflow risk",
     },
     {
       icon: Droplets,
       title: "Reduce water usage",
       badge: "ADVISED",
       tone: "advised",
-      detail: "Cut consumption ~15% to extend pump cycle by 4 days",
+      detail: "Spread out laundry and heavy water use to slow the fill rate",
     },
     {
       icon: Wrench,
       title: "Maintenance check",
       badge: "ROUTINE",
       tone: "routine",
-      detail: "Inspect inlet baffle — last service 63 days ago",
+      detail: "Last pump-out was 59 days ago — consider an inspection",
     },
   ],
 
   insights: [
-    { icon: Users,      label: "Household size",   value: "4 persons",   note: "Stable factor",  noteTone: "text-success" },
-    { icon: Droplets,   label: "Avg daily inflow", value: "340 L/day",   note: "+8% vs avg",     noteTone: "text-warning" },
-    { icon: Gauge,      label: "Fill rate",        value: "+1.8 %/day",  note: "Above average",  noteTone: "text-warning" },
-    { icon: Wrench,     label: "Last pump-out",    value: "63 days ago", note: "Jan 8, 2026",    noteTone: "text-muted-foreground" },
+    { icon: Box,      label: "Tank capacity",    value: "5,000 L",     note: "Concrete tank",       noteTone: "text-muted-foreground" },
+    { icon: Droplets, label: "Avg daily inflow", value: "50 L/day",    note: "Fill rate × capacity", noteTone: "text-muted-foreground" },
+    { icon: Gauge,    label: "Fill rate",        value: "+1.0 %/day",  note: "Last 7 days",         noteTone: "text-muted-foreground" },
+    { icon: Wrench,   label: "Last pump-out",    value: "59 days ago", note: "Jan 8, 2026",         noteTone: "text-muted-foreground" },
   ],
 };
 
@@ -113,7 +116,7 @@ export default function Predictions() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const [data] = useState(SAMPLE_DATA);
+  const [data, setData] = useState(SAMPLE_DATA);
 
   const first = user?.name?.split(" ")[0] ?? "Resident";
   const soon = (name) => window.alert(`${name} will be connected in the next step.`);
@@ -178,14 +181,9 @@ export default function Predictions() {
               <h1 className="mt-1 font-display text-xl font-bold">Predictions</h1>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="hidden items-center gap-2 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-medium text-primary sm:flex">
-              <Sparkles className="h-3.5 w-3.5" />
-              Model {data.modelVersion} · Updated {data.modelUpdated}
-            </div>
-            <button onClick={() => soon("Settings")} className="rounded-md border border-border p-2">
-              <Settings className="h-4 w-4" />
-            </button>
+          <div className="hidden items-center gap-2 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-medium text-primary sm:flex">
+            <Clock className="h-3.5 w-3.5" />
+            Updated {data.updated}
           </div>
         </header>
 
@@ -201,7 +199,7 @@ export default function Predictions() {
                 <div>
                   <h2 className="font-display font-semibold">Predicted Critical Fill Date</h2>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    When your tank is expected to reach 90% capacity
+                    When your tank is expected to reach 80% capacity
                   </p>
                 </div>
                 <span className="flex h-fit items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
@@ -240,7 +238,7 @@ export default function Predictions() {
                     </span>
                     <span className="flex items-center gap-1.5">
                       <CalendarDays className="h-3.5 w-3.5" />
-                      {data.modelWindow}
+                      {data.dataWindow}
                     </span>
                   </div>
                 </div>
@@ -258,7 +256,7 @@ export default function Predictions() {
                       <span className="h-2 w-2 rounded-full bg-warning" /> Predicted
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <span className="h-2 w-2 rounded-full bg-danger" /> Critical 90%
+                      <span className="h-2 w-2 rounded-full bg-danger" /> Critical 80%
                     </span>
                   </div>
                 </div>
@@ -280,7 +278,7 @@ export default function Predictions() {
                       <CartesianGrid strokeDasharray="4 4" stroke="oklch(0.30 0.025 275)" vertical={false} />
                       <XAxis dataKey="date" tick={{ fill: "#94a3b8", fontSize: 11 }}
                              axisLine={false} tickLine={false} dy={8} />
-                      <YAxis domain={[40, 100]} ticks={[40, 55, 70, 85, 100]}
+                      <YAxis domain={[40, 100]} ticks={[40, 55, 70, 80, 100]}
                              tick={{ fill: "#94a3b8", fontSize: 11 }}
                              axisLine={false} tickLine={false} />
                       <Tooltip
@@ -295,8 +293,8 @@ export default function Predictions() {
                         formatter={(v, n) => [`${v}%`, n === "historical" ? "Historical" : "Predicted"]}
                       />
 
-                      {/* critical threshold line */}
-                      <ReferenceLine y={90} stroke="#ef4444" strokeDasharray="5 5" strokeWidth={1} />
+                      {/* critical threshold line — 80% */}
+                      <ReferenceLine y={80} stroke="#ef4444" strokeDasharray="5 5" strokeWidth={1} />
 
                       <Area type="monotone" dataKey="historical" stroke="#00E5FF" strokeWidth={2}
                             fill="url(#histGrad)" dot={false} connectNulls={false} />
@@ -308,32 +306,30 @@ export default function Predictions() {
               </div>
             </section>
 
-            {/* ============ RIGHT: accuracy + recommendations ============ */}
+            {/* ============ RIGHT: confidence + recommendations ============ */}
             <div className="space-y-5">
-              {/* Model Accuracy */}
+              {/* Prediction Confidence */}
               <section className="rounded-lg border border-border bg-card p-5">
                 <div className="flex justify-between gap-3">
                   <div>
-                    <h2 className="font-display font-semibold">Model Accuracy</h2>
+                    <h2 className="font-display font-semibold">Prediction Confidence</h2>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Historical prediction performance
+                      How closely your readings follow a steady trend
                     </p>
                   </div>
-                  <Bot className="h-5 w-5 text-primary" />
+                  <Gauge className="h-5 w-5 text-primary" />
                 </div>
 
-                <div className="mt-4 grid grid-cols-3 gap-3">
-                  <Metric label="Accuracy" value={`${data.accuracy}%`}
-                          note="Last 90 days" valueClass="text-success" />
-                  <Metric label="Error" value={`±${data.errorDays}d`}
-                          note="Avg deviation" />
-                  <Metric label="Samples" value={data.samples}
-                          note="Data points" />
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <Metric label="Readings used" value={data.readingsUsed}
+                          note="Last 30 days" />
+                  <Metric label="Fill rate" value={`+${data.fillRate} %/day`}
+                          note="From your readings" />
                 </div>
 
                 <div className="mt-5">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Confidence interval</span>
+                    <span className="text-muted-foreground">Confidence</span>
                     <span className="font-semibold text-primary">{data.confidence}%</span>
                   </div>
                   <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
@@ -349,7 +345,7 @@ export default function Predictions() {
               <section className="rounded-lg border border-border bg-card p-5">
                 <h2 className="font-display font-semibold">Recommended Actions</h2>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Suggested steps based on the prediction model
+                  Suggested steps based on your predicted fill date
                 </p>
 
                 <div className="mt-4 space-y-2">
@@ -388,7 +384,7 @@ export default function Predictions() {
               <div>
                 <h2 className="font-display font-semibold">Prediction Insights</h2>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Key factors influencing the forecast model
+                  Key factors behind the forecast
                 </p>
               </div>
               <button

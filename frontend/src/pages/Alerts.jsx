@@ -1,8 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import {
   Activity, Bell, BellOff, Bot, CheckCheck, CircleAlert, CircleCheck,
-  FileWarning, Home, Info, LogOut, Menu, Search, Settings, ShieldCheck,
+  FileWarning, Home, Info, LogOut, Menu, Search, ShieldCheck,
   SlidersHorizontal, TriangleAlert, UserRound, Wrench, X,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -17,24 +18,26 @@ import { useAuth } from "../context/AuthContext.jsx";
      channel: fcm | email | sms
      is_read: boolean
 
-   Bawat type ay may kaukulang "tone" para sa UI (color + icon).
-   Sa `ticket_update`, ang tone ay depende sa laman ng complaint
-   status kaya sinama ko na lang bilang property ng bawat
-   notification object (galing dapat sa backend kapag totoo na).
+   Tabs:
+     Alerts   -> critical_alert
+     Warnings -> warning_alert
+     Info     -> predictive_alert + announcement
+     Updates  -> ticket_update (complaint status changes)
+
+   Status rule (single source of truth):
+     >= 80% critical, >= 70% warning, < 70% normal
 
    NOTE: Yung "X" (dismiss) button dito ay client-side lang muna
    (nagtatago sa list, hindi nagde-delete sa DB) dahil walang
-   `dismissed_at` column sa septi_notifications table mo. Kung
-   gusto mong persistent yung dismiss, magdagdag ng migration
-   para dun.
+   `dismissed_at` column sa septi_notifications table mo.
 ================================================================== */
 
 const TYPE_META = {
-  critical_alert:  { tone: "critical", icon: CircleAlert,   badge: "Alert",   chip: "bg-danger/15 text-danger border-danger/30" },
-  warning_alert:   { tone: "warning",  icon: TriangleAlert, badge: "Warning", chip: "bg-warning/15 text-warning border-warning/30" },
-  predictive_alert:{ tone: "info",     icon: Bot,           badge: "Info",    chip: "bg-primary/15 text-primary border-primary/30" },
-  announcement:    { tone: "info",     icon: Info,          badge: "Info",    chip: "bg-primary/15 text-primary border-primary/30" },
-  ticket_update:   { tone: "success",  icon: CircleCheck,   badge: "Success", chip: "bg-success/15 text-success border-success/30" },
+  critical_alert:   { tone: "critical", icon: CircleAlert,   badge: "Alert",   chip: "bg-danger/15 text-danger border-danger/30" },
+  warning_alert:    { tone: "warning",  icon: TriangleAlert, badge: "Warning", chip: "bg-warning/15 text-warning border-warning/30" },
+  predictive_alert: { tone: "info",     icon: Bot,           badge: "Info",    chip: "bg-primary/15 text-primary border-primary/30" },
+  announcement:     { tone: "info",     icon: Info,          badge: "Info",    chip: "bg-primary/15 text-primary border-primary/30" },
+  ticket_update:    { tone: "success",  icon: CircleCheck,   badge: "Update",  chip: "bg-success/15 text-success border-success/30" },
 };
 
 const TONE_CARD = {
@@ -69,7 +72,7 @@ const SAMPLE_NOTIFICATIONS = [
     id: 1,
     type: "critical_alert",
     title: "Critical: Tank approaching overflow",
-    message: "Your septic tank has reached 78% capacity. Schedule a pump-out service within the next 5 days to avoid overflow.",
+    message: "Your septic tank has reached 82% capacity. Schedule a pump-out service within the next 5 days to avoid overflow.",
     action: { label: "Schedule now", to: "/maintain" },
     time: "12 min ago",
     group: "Today",
@@ -88,8 +91,8 @@ const SAMPLE_NOTIFICATIONS = [
   {
     id: 3,
     type: "predictive_alert",
-    title: "AI prediction updated",
-    message: "Model v3.2 forecasts critical fill date on March 24, 2025. Confidence raised to 94%.",
+    title: "Prediction updated",
+    message: "Based on your recent readings, your tank is expected to reach the critical level (80%) in about 14 days.",
     action: { label: "See prediction", to: "/predict" },
     time: "3 hours ago",
     group: "Today",
@@ -162,7 +165,7 @@ export default function Alerts() {
     critical: notifications.filter((n) => n.type === "critical_alert").length,
     warning:  notifications.filter((n) => n.type === "warning_alert").length,
     info:     notifications.filter((n) => n.type === "predictive_alert" || n.type === "announcement").length,
-    success:  notifications.filter((n) => n.type === "ticket_update").length,
+    updates:  notifications.filter((n) => n.type === "ticket_update").length,
   }), [notifications]);
 
   const filtered = useMemo(() => {
@@ -172,7 +175,7 @@ export default function Alerts() {
         if (tab === "critical") return n.type === "critical_alert";
         if (tab === "warning") return n.type === "warning_alert";
         if (tab === "info") return n.type === "predictive_alert" || n.type === "announcement";
-        if (tab === "success") return n.type === "ticket_update";
+        if (tab === "updates") return n.type === "ticket_update";
         return true;
       })
       .filter((n) =>
@@ -266,18 +269,13 @@ export default function Alerts() {
               <h1 className="mt-1 font-display text-xl font-bold">Notifications</h1>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={markAllRead}
-              className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
-            >
-              <CheckCheck className="h-3.5 w-3.5" />
-              Mark all as read
-            </button>
-            <button onClick={() => soon("Settings")} className="rounded-md border border-border p-2">
-              <Settings className="h-4 w-4" />
-            </button>
-          </div>
+          <button
+            onClick={markAllRead}
+            className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+          >
+            <CheckCheck className="h-3.5 w-3.5" />
+            Mark all as read
+          </button>
         </header>
 
         <main className="mx-auto max-w-[1440px] space-y-5 p-4 sm:p-7">
@@ -309,8 +307,8 @@ export default function Alerts() {
                 <TabButton active={tab === "info"} onClick={() => setTab("info")}>
                   Info <Badge>{tabCounts.info}</Badge>
                 </TabButton>
-                <TabButton active={tab === "success"} onClick={() => setTab("success")}>
-                  Success <Badge>{tabCounts.success}</Badge>
+                <TabButton active={tab === "updates"} onClick={() => setTab("updates")}>
+                  Updates <Badge>{tabCounts.updates}</Badge>
                 </TabButton>
               </div>
 
@@ -381,6 +379,7 @@ export default function Alerts() {
 
                       <button
                         onClick={() => dismiss(n.id)}
+                        aria-label="Dismiss notification"
                         className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                       >
                         <X className="h-3.5 w-3.5" />
