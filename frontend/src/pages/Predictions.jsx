@@ -95,7 +95,7 @@ const SAMPLE_DATA = {
 
 const NAV = [
   { icon: Home,        label: "Dashboard", path: "/dashboard" },
-  { icon: Activity,    label: "Monitor", path: "/monitor" },
+  { icon: Activity,    label: "Monitoring", path: "/monitor" },
   { icon: Bot,         label: "Predict", path: "/predict", active: true },
   { icon: FileWarning, label: "Complaints", path: "/complaints" },
   { icon: Wrench,      label: "Maintain", path: "/maintain" },

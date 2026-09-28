@@ -53,7 +53,7 @@ const TONE_ICON_WRAP = {
 
 const NAV = [
   { icon: Home,        label: "Dashboard", path: "/dashboard" },
-  { icon: Activity,    label: "Monitor", path: "/monitor" },
+  { icon: Activity,    label: "Monitoring", path: "/monitor" },
   { icon: Bot,         label: "Predict", path: "/predict" },
   { icon: FileWarning, label: "Complaints", path: "/complaints" },
   { icon: Wrench,      label: "Maintain", path: "/maintain" },

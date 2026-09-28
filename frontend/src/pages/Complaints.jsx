@@ -100,7 +100,7 @@ const SAMPLE_COMPLAINTS = [
 
 const NAV = [
   { icon: Home,        label: "Dashboard", path: "/dashboard" },
-  { icon: Activity,    label: "Monitor", path: "/monitor" },
+  { icon: Activity,    label: "Monitoring", path: "/monitor" },
   { icon: Bot,         label: "Predict", path: "/predict" },
   { icon: FileWarning, label: "Complaints", path: "/complaints", active: true },
   { icon: Wrench,      label: "Maintain", path: "/maintain" },

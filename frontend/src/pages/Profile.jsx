@@ -28,7 +28,7 @@ const SAMPLE = {
 
 const NAV = [
   { icon: Home, label: "Dashboard", to: "/dashboard" },
-  { icon: Activity, label: "Monitor", to: "/monitor" },
+  { icon: Activity, label: "Monitoring", to: "/monitor" },
   { icon: Bot, label: "Predict", to: "/predict" },
   { icon: FileWarning, label: "Complaints", to: "/complaints" },
   { icon: Wrench, label: "Maintain", to: "/maintain" },

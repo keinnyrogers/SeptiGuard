@@ -14,6 +14,7 @@ import AdminTanks from "./pages/AdminTanks.jsx";
 import AdminComplaints from "./pages/AdminComplaints.jsx";
 import AdminResidents from "./pages/AdminResidents.jsx";
 import AdminReports from "./pages/AdminReports.jsx";
+import AdminDevices from "./pages/AdminDevices.jsx";
 
 export default function App() {
   const location = useLocation();
@@ -36,6 +37,7 @@ export default function App() {
       <Route path="/admin/complaints" element={<AdminComplaints />} />
       <Route path="/admin/residents" element={<AdminResidents />} />
       <Route path="/admin/reports" element={<AdminReports />} />
+      <Route path="/admin/devices" element={<AdminDevices />} />
     </Routes>
     </div>
   );

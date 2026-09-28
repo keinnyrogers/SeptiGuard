@@ -101,6 +101,18 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
   }
+
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill,
+  select:-webkit-autofill {
+    -webkit-text-fill-color: var(--foreground) !important;
+    -webkit-box-shadow: 0 0 0 1000px var(--input) inset !important;
+    background-color: var(--input) !important;
+    caret-color: var(--foreground) !important;
+    transition: background-color 9999s ease-in-out 0s;
+  }
 }
 
 @utility septiglow {
