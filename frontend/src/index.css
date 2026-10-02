@@ -165,6 +165,14 @@
   }
 }
 
+.panel-slide-in {
+  animation: septiguard-sheet-in 300ms ease-out both;
+}
+
+.panel-overlay-in {
+  animation: septiguard-overlay-in 200ms ease-out both;
+}
+
 @keyframes septiguard-overlay-in {
   from { opacity: 0; }
   to { opacity: 1; }

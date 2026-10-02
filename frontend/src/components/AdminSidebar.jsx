@@ -5,7 +5,6 @@ import {
   Users,
   FileText,
   Cpu,
-  Settings,
   ShieldCheck,
   LogOut,
   X,
@@ -18,14 +17,13 @@ const NAV = [
   { icon: Users, label: "Residents", to: "/admin/residents" },
   { icon: FileText, label: "Reports", to: "/admin/reports" },
   { icon: Cpu, label: "Devices", to: "/admin/devices" },
-  { icon: Settings, label: "Settings" },
 ];
 
 // In your app, pass navigate from react-router-dom's useNavigate(), plus user/signOut from your auth.
 export function AdminSidebar({
   open = false,
   setOpen = () => {},
-  navigate = (to) => window.location.assign(to),
+  navigate = () => {},
   user,
   signOut = () => {},
   active = "Complaints",

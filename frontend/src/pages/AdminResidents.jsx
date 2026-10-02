@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Users, Cpu, UserPlus, AlertTriangle, Pencil, Eye, Check, X, Plus, Menu } from "lucide-react";
 import { AdminSidebar } from "@/components/AdminSidebar";
+import ResidentPanel from "@/components/ResidentPanel";
 import { SAMPLE_RESIDENTS } from "@/data/residents";
 import { useAuth } from "../context/AuthContext.jsx";
 
@@ -42,6 +43,8 @@ export default function AdminResidents() {
   const [tab, setTab] = useState("all");
   const [menuOpen, setMenuOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
+  const [selectedResident, setSelectedResident] = useState(null);
+  const [panelMode, setPanelMode] = useState("view");
   const [form, setForm] = useState(EMPTY_FORM);
 
   const inTab = (r, t) => {
@@ -90,6 +93,15 @@ export default function AdminResidents() {
     ]);
     setForm(EMPTY_FORM);
     setFormOpen(false);
+  }
+
+  function handleResidentSave(updatedResident) {
+    setResidents((prev) =>
+      prev.map((resident) =>
+        resident.id === updatedResident.id ? { ...resident, ...updatedResident } : resident,
+      ),
+    );
+    setSelectedResident(null);
   }
 
   const stats = [
@@ -199,8 +211,26 @@ export default function AdminResidents() {
                         </>
                       ) : (
                         <>
-                          <button className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs text-primary hover:bg-muted"><Pencil className="h-3.5 w-3.5" />Edit</button>
-                          <button className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs hover:bg-muted"><Eye className="h-3.5 w-3.5" />View</button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedResident(r);
+                              setPanelMode("edit");
+                            }}
+                            className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs text-primary hover:bg-muted"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedResident(r);
+                              setPanelMode("view");
+                            }}
+                            className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs hover:bg-muted"
+                          >
+                            <Eye className="h-3.5 w-3.5" />View
+                          </button>
                         </>
                       )}
                     </div>
@@ -215,6 +245,16 @@ export default function AdminResidents() {
           <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">Showing {visible.length} of {residents.length} residents</p>
         </div>
       </main>
+
+      {selectedResident && (
+        <ResidentPanel
+          resident={selectedResident}
+          mode={panelMode}
+          onClose={() => setSelectedResident(null)}
+          onModeChange={setPanelMode}
+          onSave={handleResidentSave}
+        />
+      )}
 
       {formOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4" onClick={() => setFormOpen(false)}>

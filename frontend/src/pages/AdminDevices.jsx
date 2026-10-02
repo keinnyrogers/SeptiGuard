@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Cpu, Wifi, WifiOff, BatteryLow, Plus, Eye, MoreHorizontal, Menu, X, Check } from "lucide-react";
 import { AdminSidebar } from "@/components/AdminSidebar";
+import DevicePanel from "@/components/DevicePanel";
 import { SAMPLE_DEVICES, LOW_BATTERY_THRESHOLD } from "@/data/devices";
 import { useAuth } from "../context/AuthContext.jsx";
 
@@ -41,6 +42,7 @@ export default function AdminDevices() {
   const [blockFilter, setBlockFilter] = useState("all");
   const [menuOpen, setMenuOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
+  const [selectedDevice, setSelectedDevice] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
 
   const blocks = useMemo(
@@ -88,6 +90,13 @@ export default function AdminDevices() {
     ]);
     setForm(EMPTY_FORM);
     setFormOpen(false);
+  }
+
+  function handleDeviceSave(updatedDevice) {
+    setDevices((prev) =>
+      prev.map((device) => (device.id === updatedDevice.id ? { ...device, ...updatedDevice } : device)),
+    );
+    setSelectedDevice(null);
   }
 
   const stats = [
@@ -197,7 +206,13 @@ export default function AdminDevices() {
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{d.firmware}</td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
-                      <button className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs text-primary hover:bg-muted"><Eye className="h-3.5 w-3.5" />View</button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDevice(d)}
+                        className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs text-primary hover:bg-muted"
+                      >
+                        <Eye className="h-3.5 w-3.5" />View
+                      </button>
                       <button aria-label="More actions" className="rounded-md border border-border px-2 py-1 text-xs hover:bg-muted"><MoreHorizontal className="h-3.5 w-3.5" /></button>
                     </div>
                   </td>
@@ -211,6 +226,14 @@ export default function AdminDevices() {
           <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">Showing {visible.length} of {devices.length} devices</p>
         </div>
       </main>
+
+      {selectedDevice && (
+        <DevicePanel
+          device={selectedDevice}
+          onClose={() => setSelectedDevice(null)}
+          onSave={handleDeviceSave}
+        />
+      )}
 
       {formOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4" onClick={() => setFormOpen(false)}>
