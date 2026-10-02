@@ -11,6 +11,7 @@ return [
         'http://127.0.0.1:5174',
     ]),
     'allowed_origins_patterns' => [
+        '#^https?://(localhost|127\\.0\\.0\\.1)(:\\d+)?$#',
         'https://*.trycloudflare.com',
     ],
     'allowed_headers' => ['*'],

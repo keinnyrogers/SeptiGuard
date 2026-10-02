@@ -1,5 +1,5 @@
+import { useEffect, useState } from "react";
 import { Clock, Droplets, MapPin, User, X } from "lucide-react";
-import { createPortal } from "react-dom";
 
 // Shared status thresholds: >=80 critical, >=70 warning, else normal.
 function statusOf(level) {
@@ -29,6 +29,18 @@ function Row({ label, value }) {
  * { id, resident, block, lot, address, level, status, daysUntilFull, installed, lastDesludged, capacity }
  */
 export default function TankPanel({ tank, onClose, onAction = () => {} }) {
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    if (!tank) {
+      setIsVisible(false);
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => setIsVisible(true));
+    return () => cancelAnimationFrame(frame);
+  }, [tank]);
+
   if (!tank) return null;
 
   const status = tank.status ?? statusOf(tank.level);
@@ -40,9 +52,9 @@ export default function TankPanel({ tank, onClose, onAction = () => {} }) {
   const circ = 2 * Math.PI * 42;
   const dash = (tank.level / 100) * circ;
 
-  return createPortal(
-    <div className="panel-overlay-in fixed inset-0 z-50 flex justify-end overflow-hidden bg-black/80" onClick={onClose}>
-      <aside onClick={(e) => e.stopPropagation()} className="panel-slide-in flex h-full min-h-0 w-full max-w-md flex-col border-l border-border bg-card">
+  return (
+    <div className={`fixed inset-0 z-50 flex justify-end bg-background/80 transition-opacity duration-300 ${isVisible ? "opacity-100" : "opacity-0"}`} onClick={onClose}>
+      <aside onClick={(e) => e.stopPropagation()} className={`flex h-full w-full max-w-md flex-col border-l border-border bg-card transition-transform duration-300 ease-out will-change-transform ${isVisible ? "translate-x-0" : "translate-x-full"}`}>
         <header className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
           <div className="flex items-center gap-3">
             <span className="flex h-11 w-11 items-center justify-center rounded-md bg-primary/15">
@@ -58,11 +70,11 @@ export default function TankPanel({ tank, onClose, onAction = () => {} }) {
           </button>
         </header>
 
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
-          <section className="space-y-3">
+        <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5">
+          <section className="space-y-4">
             <span className={`inline-block rounded-md px-2 py-1 text-xs font-medium ${meta.bg} ${meta.text}`}>{meta.label}</span>
 
-            <div className="relative mx-auto h-28 w-28">
+            <div className="relative mx-auto h-32 w-32">
               <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
                 <circle cx="60" cy="60" r="42" fill="none" stroke="currentColor" strokeWidth="12" className="text-muted" />
                 <circle
@@ -90,7 +102,7 @@ export default function TankPanel({ tank, onClose, onAction = () => {} }) {
             </div>
           </section>
 
-          <section className="space-y-2">
+          <section className="space-y-3">
             <h3 className="text-sm font-semibold">Household</h3>
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <User className="h-4 w-4" />
@@ -102,7 +114,7 @@ export default function TankPanel({ tank, onClose, onAction = () => {} }) {
             </p>
           </section>
 
-          <section className="space-y-2 rounded-lg border border-border bg-background p-3">
+          <section className="space-y-3 rounded-lg border border-border bg-background p-4">
             <h3 className="text-sm font-semibold">System details</h3>
             <Row label="Device / Tank ID" value={tank.id} />
             <Row label="Capacity" value={tank.capacity ?? "1,500 L"} />
@@ -125,7 +137,6 @@ export default function TankPanel({ tank, onClose, onAction = () => {} }) {
           </button>
         </footer>
       </aside>
-    </div>,
-    document.body,
+    </div>
   );
 }

@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Users, Cpu, UserPlus, AlertTriangle, Pencil, Eye, Check, X, Plus, Menu } from "lucide-react";
+import { Search, Users, Cpu, UserPlus, AlertTriangle, Pencil, Eye, Check, X, Menu } from "lucide-react";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import ResidentPanel from "@/components/ResidentPanel";
-import { SAMPLE_RESIDENTS } from "@/data/residents";
+import { fetchAdminResidents, updateAdminResidentApproval } from "../api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
 const ACCOUNT_BADGE = {
@@ -33,19 +33,45 @@ function timeAgo(iso) {
   return `${Math.round(h / 24)} d ago`;
 }
 
-const EMPTY_FORM = { name: "", email: "", phone: "", block_lot: "", tank_id: "", approve: true };
-
 export default function AdminResidents() {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const navigate = useNavigate();
-  const [residents, setResidents] = useState(SAMPLE_RESIDENTS);
+  const [residents, setResidents] = useState([]);
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState("all");
   const [menuOpen, setMenuOpen] = useState(false);
-  const [formOpen, setFormOpen] = useState(false);
   const [selectedResident, setSelectedResident] = useState(null);
   const [panelMode, setPanelMode] = useState("view");
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [approvalError, setApprovalError] = useState("");
+  const [updatingId, setUpdatingId] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    if (!token) {
+      return () => {
+        isCurrent = false;
+      };
+    }
+
+    fetchAdminResidents(token)
+      .then((items) => {
+        if (isCurrent) setResidents(items);
+      })
+      .catch((error) => {
+        if (isCurrent) setLoadError(error.message);
+      })
+      .finally(() => {
+        if (isCurrent) setLoading(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [token, reloadKey]);
 
   const inTab = (r, t) => {
     if (t === "active") return r.status === "approved" && r.is_active;
@@ -69,30 +95,17 @@ export default function AdminResidents() {
     );
   }, [residents, tab, query]);
 
-  const setStatus = (id, status) => setResidents((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));
-
-  function submit(e) {
-    e.preventDefault();
-    // Later: POST to Laravel — creates users row (role=resident) + linked septic_systems row.
-    setResidents((prev) => [
-      {
-        id: Date.now(),
-        name: form.name,
-        email: form.email,
-        phone: form.phone,
-        role: "Homeowner",
-        block_lot: form.block_lot,
-        tank_id: form.tank_id || null,
-        fill_level: null,
-        tank_status: null,
-        status: form.approve ? "approved" : "pending",
-        is_active: true,
-        last_activity: new Date().toISOString(),
-      },
-      ...prev,
-    ]);
-    setForm(EMPTY_FORM);
-    setFormOpen(false);
+  async function setStatus(id, status) {
+    setUpdatingId(id);
+    setApprovalError("");
+    try {
+      const result = await updateAdminResidentApproval(token, id, status);
+      setResidents((prev) => prev.map((resident) => (resident.id === id ? result.data : resident)));
+    } catch (error) {
+      setApprovalError(error.message);
+    } finally {
+      setUpdatingId(null);
+    }
   }
 
   function handleResidentSave(updatedResident) {
@@ -117,8 +130,8 @@ export default function AdminResidents() {
     ["flagged", "Flagged"],
     ["inactive", "Inactive"],
   ];
+  const requestError = token ? loadError : "Sign in with an HOA admin account to view resident registrations.";
   const field = "h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-ring";
-
   return (
     <div className="min-h-screen bg-background">
       <AdminSidebar
@@ -140,8 +153,8 @@ export default function AdminResidents() {
             <p className="text-sm text-muted-foreground">Admin Portal <span className="mx-1">›</span><span className="text-foreground">Residents</span></p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight md:text-3xl">Resident &amp; Household Management</h1>
           </div>
-          <button onClick={() => setFormOpen(true)} className="flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90">
-            <Plus className="h-4 w-4" /> Add Resident
+          <button onClick={() => navigate("/register")} className="flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90">
+            <UserPlus className="h-4 w-4" /> Open Sign-up
           </button>
         </div>
 
@@ -169,6 +182,8 @@ export default function AdminResidents() {
           ))}
         </div>
 
+        {approvalError && <p role="alert" className="mt-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">{approvalError}</p>}
+
         <div className="mt-4 overflow-x-auto rounded-lg border border-border bg-card">
           <table className="w-full min-w-[1000px] text-sm">
             <thead>
@@ -179,12 +194,14 @@ export default function AdminResidents() {
               </tr>
             </thead>
             <tbody>
-              {visible.map((r) => (
+              {token && loading && <tr><td colSpan={8} className="p-10 text-center text-sm text-muted-foreground">Loading resident accounts…</td></tr>}
+              {(!token || (!loading && loadError)) && <tr><td colSpan={8} className="p-10 text-center"><p role="alert" className="text-sm text-danger">{requestError}</p>{token && <button type="button" onClick={() => { setLoading(true); setLoadError(""); setReloadKey((key) => key + 1); }} className="mt-3 rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-muted">Try again</button>}</td></tr>}
+              {token && !loading && !loadError && visible.map((r) => (
                 <tr key={r.id} className="border-b border-border last:border-0 hover:bg-muted/40">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">{initials(r.name)}</span>
-                      <div><p className="font-medium">{r.name}</p><p className="text-xs text-muted-foreground">{r.role}{!r.is_active && " · Inactive"}</p></div>
+                      <div><p className="font-medium">{r.name}</p><p className="text-xs text-muted-foreground">{r.role}{r.status === "approved" && !r.is_active && " · Inactive"}</p></div>
                     </div>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs">{r.block_lot}</td>
@@ -206,8 +223,8 @@ export default function AdminResidents() {
                     <div className="flex justify-end gap-2">
                       {r.status === "pending" ? (
                         <>
-                          <button onClick={() => setStatus(r.id, "approved")} className="flex items-center gap-1 rounded-md bg-success/15 px-2.5 py-1 text-xs font-medium text-success hover:bg-success/25"><Check className="h-3.5 w-3.5" />Approve</button>
-                          <button onClick={() => setStatus(r.id, "rejected")} className="flex items-center gap-1 rounded-md bg-danger/15 px-2.5 py-1 text-xs font-medium text-danger hover:bg-danger/25"><X className="h-3.5 w-3.5" />Reject</button>
+                          <button disabled={updatingId === r.id} onClick={() => setStatus(r.id, "approved")} className="flex items-center gap-1 rounded-md bg-success/15 px-2.5 py-1 text-xs font-medium text-success hover:bg-success/25 disabled:cursor-wait disabled:opacity-50"><Check className="h-3.5 w-3.5" />{updatingId === r.id ? "Saving…" : "Approve"}</button>
+                          <button disabled={updatingId === r.id} onClick={() => setStatus(r.id, "rejected")} className="flex items-center gap-1 rounded-md bg-danger/15 px-2.5 py-1 text-xs font-medium text-danger hover:bg-danger/25 disabled:cursor-wait disabled:opacity-50"><X className="h-3.5 w-3.5" />Reject</button>
                         </>
                       ) : (
                         <>
@@ -237,12 +254,20 @@ export default function AdminResidents() {
                   </td>
                 </tr>
               ))}
-              {visible.length === 0 && (
-                <tr><td colSpan={8} className="p-10 text-center text-muted-foreground">No residents match the current filters.</td></tr>
+              {token && !loading && !loadError && visible.length === 0 && (
+                <tr><td colSpan={8} className="p-10 text-center">
+                  <p className="text-sm font-medium">{residents.length === 0 ? "No residents registered" : "No residents match these filters"}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{residents.length === 0 ? "Add a household account to begin managing residents." : "Try another search or return to all residents."}</p>
+                  {residents.length === 0 ? (
+                    <button type="button" onClick={() => navigate("/register")} className="mt-3 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground">Open resident sign-up</button>
+                  ) : (
+                    <button type="button" onClick={() => { setQuery(""); setTab("all"); }} className="mt-3 rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-muted">Clear filters</button>
+                  )}
+                </td></tr>
               )}
             </tbody>
           </table>
-          <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">Showing {visible.length} of {residents.length} residents</p>
+          <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">{token && loading ? "Loading residents…" : token && !loadError ? `Showing ${visible.length} of ${residents.length} residents` : ""}</p>
         </div>
       </main>
 
@@ -256,29 +281,6 @@ export default function AdminResidents() {
         />
       )}
 
-      {formOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4" onClick={() => setFormOpen(false)}>
-          <form onSubmit={submit} onClick={(e) => e.stopPropagation()} className="w-full max-w-md space-y-3 rounded-lg border border-border bg-card p-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Add Resident</h2>
-              <button type="button" onClick={() => setFormOpen(false)} aria-label="Close"><X className="h-4 w-4" /></button>
-            </div>
-            {[["name", "Full name", "text"], ["email", "Email", "email"], ["phone", "Phone", "tel"], ["block_lot", "Block / Lot (e.g. Blk 3 Lot 7)", "text"], ["tank_id", "Tank assignment (e.g. TNK-052)", "text"]].map(([k, label, type]) => (
-              <label key={k} className="block text-xs text-muted-foreground">{label}
-                <input type={type} required={k !== "tank_id"} value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} className={`${field} mt-1 text-foreground`} />
-              </label>
-            ))}
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={form.approve} onChange={(e) => setForm({ ...form, approve: e.target.checked })} className="accent-primary" />
-              Approve immediately (otherwise saved as pending)
-            </label>
-            <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setFormOpen(false)} className="h-9 rounded-md border border-border px-4 text-sm hover:bg-muted">Cancel</button>
-              <button type="submit" className="h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90">Create Resident</button>
-            </div>
-          </form>
-        </div>
-      )}
     </div>
   );
 }

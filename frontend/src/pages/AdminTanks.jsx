@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Bell, ChevronDown, Clock, LayoutGrid, List, MapPin, Menu, Search } from "lucide-react";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import TankPanel from "@/components/TankPanel";
+import DispatchModal from "@/components/DispatchModal";
 import { useAuth } from "../context/AuthContext.jsx";
 
 // ---------- Status threshold rules (single source of truth) ----------
@@ -54,6 +55,8 @@ export default function AdminTanks() {
   const [blockFilter, setBlockFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [selectedTank, setSelectedTank] = useState(null);
+  const [dispatchTank, setDispatchTank] = useState(null);
+  const [viewMode, setViewMode] = useState("grid");
   const soon = (name) => window.alert(`${name} will be connected in the next step.`);
 
   const counts = useMemo(() => {
@@ -174,13 +177,13 @@ export default function AdminTanks() {
                   options={[{ value: "all", label: "Block/Lot: All" }, ...blocks.map((block) => ({ value: String(block), label: `Block ${block}` }))]}
                   ariaLabel="Filter tanks by block"
                 />
-                <div className="flex items-center gap-1 rounded-md border border-border bg-background p-1">
-                  <span className="flex h-8 w-8 items-center justify-center rounded bg-primary text-primary-foreground">
+                <div className="flex items-center gap-1 rounded-md border border-border bg-background p-1" aria-label="Tank view">
+                  <button type="button" aria-label="Grid view" aria-pressed={viewMode === "grid"} onClick={() => setViewMode("grid")} className={`flex h-8 w-8 items-center justify-center rounded ${viewMode === "grid" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>
                     <LayoutGrid className="h-4 w-4" />
-                  </span>
-                  <span className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground">
+                  </button>
+                  <button type="button" aria-label="List view" aria-pressed={viewMode === "list"} onClick={() => setViewMode("list")} className={`flex h-8 w-8 items-center justify-center rounded ${viewMode === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>
                     <List className="h-4 w-4" />
-                  </span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -230,8 +233,35 @@ export default function AdminTanks() {
 
           {/* Tank grid */}
           {pageItems.length === 0 ? (
-            <div className="rounded-lg border border-border bg-card p-10 text-center text-xs text-muted-foreground">
-              No tanks match your filters.
+            <div className="rounded-lg border border-dashed border-border bg-card p-10 text-center">
+              <p className="text-sm font-medium">No tanks match these filters</p>
+              <p className="mt-1 text-xs text-muted-foreground">Try another search or reset the selected filters.</p>
+              <button type="button" onClick={() => { setQuery(""); setStatusFilter("all"); setBlockFilter("all"); setPage(1); }} className="mt-4 rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-muted">
+                Clear filters
+              </button>
+            </div>
+          ) : viewMode === "list" ? (
+            <div className="overflow-x-auto rounded-lg border border-border bg-card">
+              <table className="w-full min-w-[720px] text-left text-xs">
+                <thead className="border-b border-border text-[10px] uppercase text-muted-foreground">
+                  <tr><th className="px-4 py-3">Tank</th><th>Resident</th><th>Block / Lot</th><th>Fill</th><th>Status</th><th className="text-right">Actions</th></tr>
+                </thead>
+                <tbody>
+                  {pageItems.map((tank) => (
+                    <tr key={tank.id} className="border-b border-border/70 last:border-0 hover:bg-muted/30">
+                      <td className="px-4 py-3 font-medium text-primary">{tank.id}</td>
+                      <td>{tank.resident}</td>
+                      <td className="text-muted-foreground">Blk {tank.block}, Lot {tank.lot}</td>
+                      <td>{tank.level}%</td>
+                      <td><span className={`rounded-md px-2 py-1 text-[10px] font-medium ${STATUS_META[tank.status].bg} ${STATUS_META[tank.status].text}`}>{STATUS_META[tank.status].label}</span></td>
+                      <td className="px-4 py-3 text-right">
+                        <button type="button" onClick={() => setSelectedTank(tank)} className="rounded-md border border-border px-2.5 py-1.5 text-[10px] hover:bg-muted">Details</button>
+                        <button type="button" onClick={() => setDispatchTank({ ...tank, address: `Blk ${tank.block} Lot ${tank.lot}, Broadway`, action: tank.status === "critical" ? "Dispatch" : "Schedule" })} className="ml-2 rounded-md bg-primary px-2.5 py-1.5 text-[10px] text-primary-foreground">{tank.status === "critical" ? "Dispatch" : "Schedule"}</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -240,7 +270,7 @@ export default function AdminTanks() {
                   key={t.id}
                   tank={t}
                   onView={() => setSelectedTank(t)}
-                  onSchedule={() => soon(`${t.status === "critical" ? "Dispatch desludging" : "Schedule desludging"} for ${t.id}`)}
+                  onSchedule={() => setDispatchTank({ ...t, address: `Blk ${t.block} Lot ${t.lot}, Broadway`, action: t.status === "critical" ? "Dispatch" : "Schedule" })}
                 />
               ))}
             </div>
@@ -256,6 +286,11 @@ export default function AdminTanks() {
               }}
             />
           )}
+          <DispatchModal
+            tank={dispatchTank}
+            onClose={() => setDispatchTank(null)}
+            onConfirm={({ tankId, contractor, date }) => window.alert(`Demo: ${tankId} desludging scheduled with ${contractor} for ${date}.`)}
+          />
 
           {/* Pagination */}
           <div className="flex flex-col items-center justify-between gap-3 rounded-lg border border-border bg-card p-4 sm:flex-row">

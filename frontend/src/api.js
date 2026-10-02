@@ -111,6 +111,43 @@ export async function registerRequest(payload) {
   }
 }
 
+async function adminResidentRequest(path, token, options = {}) {
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}/api/admin/residents${path}`, {
+      ...options,
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+        ...(options.body ? { "Content-Type": "application/json" } : {}),
+        ...options.headers,
+      },
+    });
+  } catch {
+    throw new Error("Could not reach the SeptiGuard server. Make sure the backend is running.");
+  }
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    const validationMessage = data?.errors ? Object.values(data.errors)[0]?.[0] : null;
+    throw new Error(validationMessage ?? data?.message ?? "Could not update resident accounts.");
+  }
+
+  return data;
+}
+
+export async function fetchAdminResidents(token) {
+  const response = await adminResidentRequest("", token);
+  return Array.isArray(response?.data) ? response.data : [];
+}
+
+export function updateAdminResidentApproval(token, residentId, status) {
+  return adminResidentRequest(`/${residentId}/approval`, token, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
+
 export async function logoutRequest(token) {
   try {
     await fetch(`${API_BASE_URL}/api/logout`, {

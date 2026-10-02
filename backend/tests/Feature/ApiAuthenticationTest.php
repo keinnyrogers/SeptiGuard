@@ -51,6 +51,8 @@ class ApiAuthenticationTest extends TestCase
         $response = $this->postJson('/api/register', [
             'name' => 'New Resident',
             'email' => 'new-resident@example.com',
+            'address' => 'Blk 3 Lot 12',
+            'contact_number' => '09123456789',
             'password' => 'password123',
             'password_confirmation' => 'password123',
         ]);
@@ -59,6 +61,12 @@ class ApiAuthenticationTest extends TestCase
         $this->assertDatabaseHas('users', [
             'email' => 'new-resident@example.com',
             'account_status' => 'pending',
+            'role' => 'resident',
+        ]);
+        $this->assertDatabaseHas('resident_profiles', [
+            'user_id' => $response->json('user.id'),
+            'address' => 'Blk 3 Lot 12',
+            'contact_number' => '09123456789',
         ]);
     }
 }

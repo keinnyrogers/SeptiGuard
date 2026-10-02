@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
@@ -44,17 +45,31 @@ class ApiAuthController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'address' => ['required', 'string', 'max:255'],
+            'contact_number' => ['required', 'string', 'max:20'],
             'password' => ['required', 'confirmed', 'string', 'min:8'],
         ]);
 
-        $user = User::create([
-            ...$validated,
-            'account_status' => 'pending',
-        ]);
+        $user = DB::transaction(function () use ($validated): User {
+            $user = User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'password' => $validated['password'],
+                'role' => 'resident',
+                'account_status' => 'pending',
+            ]);
+
+            $user->residentProfile()->create([
+                'address' => $validated['address'],
+                'contact_number' => $validated['contact_number'],
+            ]);
+
+            return $user;
+        });
 
         return response()->json([
             'message' => 'Registration submitted and is awaiting HOA approval.',
-            'user' => $user,
+            'user' => $user->load('residentProfile'),
         ], 201);
     }
 

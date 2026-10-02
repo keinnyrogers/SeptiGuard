@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Cpu, Wifi, WifiOff, BatteryLow, Plus, Eye, MoreHorizontal, Menu, X, Check } from "lucide-react";
+import { Search, Cpu, Wifi, WifiOff, BatteryLow, Plus, Eye, Menu, X, Check } from "lucide-react";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import DevicePanel from "@/components/DevicePanel";
 import { SAMPLE_DEVICES, LOW_BATTERY_THRESHOLD } from "@/data/devices";
@@ -23,6 +23,7 @@ function batteryColor(v) {
   return "bg-success";
 }
 function timeAgo(iso) {
+  if (!iso || Number.isNaN(new Date(iso).getTime())) return "No readings yet";
   const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
   if (m < 60) return `${m} min ago`;
   const h = Math.round(m / 60);
@@ -44,6 +45,7 @@ export default function AdminDevices() {
   const [formOpen, setFormOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [formError, setFormError] = useState("");
 
   const blocks = useMemo(
     () => [...new Set(devices.map((d) => d.block_lot.split(" ")[0]))].sort(),
@@ -73,22 +75,28 @@ export default function AdminDevices() {
 
   function submit(e) {
     e.preventDefault();
+    const deviceId = form.device_id.trim();
+    if (devices.some((device) => device.device_id.toLowerCase() === deviceId.toLowerCase())) {
+      setFormError("A device with this ID is already registered.");
+      return;
+    }
     // Later: POST to Laravel — creates a septic_systems row with this device_id.
     setDevices((prev) => [
       {
         id: Date.now(),
-        device_id: form.device_id,
-        resident: form.resident,
-        block_lot: form.block_lot,
+        device_id: deviceId,
+        resident: form.resident.trim(),
+        block_lot: form.block_lot.trim(),
         status: "offline",
         signal: null,
         battery: null,
-        last_reading_at: new Date().toISOString(),
+        last_reading_at: null,
         firmware: "v2.4.1",
       },
       ...prev,
     ]);
     setForm(EMPTY_FORM);
+    setFormError("");
     setFormOpen(false);
   }
 
@@ -213,13 +221,20 @@ export default function AdminDevices() {
                       >
                         <Eye className="h-3.5 w-3.5" />View
                       </button>
-                      <button aria-label="More actions" className="rounded-md border border-border px-2 py-1 text-xs hover:bg-muted"><MoreHorizontal className="h-3.5 w-3.5" /></button>
                     </div>
                   </td>
                 </tr>
               ))}
               {visible.length === 0 && (
-                <tr><td colSpan={8} className="p-10 text-center text-muted-foreground">No devices match the current filters.</td></tr>
+                <tr><td colSpan={8} className="p-10 text-center">
+                  <p className="text-sm font-medium">{devices.length === 0 ? "No devices registered" : "No devices match these filters"}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{devices.length === 0 ? "Register a sensor to start tracking its connection state." : "Try a different search or reset the filters."}</p>
+                  {devices.length === 0 ? (
+                    <button type="button" onClick={() => setFormOpen(true)} className="mt-3 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground">Add Device</button>
+                  ) : (
+                    <button type="button" onClick={() => { setQuery(""); setStatusFilter("all"); setSignalFilter("all"); setBlockFilter("all"); }} className="mt-3 rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-muted">Clear filters</button>
+                  )}
+                </td></tr>
               )}
             </tbody>
           </table>
@@ -242,6 +257,7 @@ export default function AdminDevices() {
               <h2 className="text-lg font-semibold">Add Device</h2>
               <button type="button" onClick={() => setFormOpen(false)} aria-label="Close"><X className="h-4 w-4" /></button>
             </div>
+            {formError && <p role="alert" className="text-xs text-danger">{formError}</p>}
             {[["device_id", "Device ID (e.g. SG-012A)", "text"], ["resident", "Resident name", "text"], ["block_lot", "Block / Lot (e.g. Blk 3 Lot 7)", "text"]].map(([k, label, type]) => (
               <label key={k} className="block text-xs text-muted-foreground">{label}
                 <input type={type} required value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} className={`${field} mt-1 text-foreground`} />

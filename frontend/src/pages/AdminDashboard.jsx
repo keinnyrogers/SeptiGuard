@@ -11,6 +11,9 @@ import {
   Menu,
 } from "lucide-react";
 import { AdminSidebar } from "@/components/AdminSidebar";
+import TankPanel from "@/components/TankPanel";
+import DispatchModal from "@/components/DispatchModal";
+import NotificationPopover from "@/components/NotificationPopover";
 import { useAuth } from "../context/AuthContext.jsx";
 
 const SAMPLE_ADMIN_DATA = {
@@ -24,9 +27,9 @@ const SAMPLE_ADMIN_DATA = {
     { label: "Critical", value: 3, percent: 6, color: "text-danger" },
   ],
   alerts: [
-    { id: "TNK-042", address: "Blk 12 Lot 4, Broadway", level: 96, critical: true },
-    { id: "TNK-018", address: "Blk 7 Lot 22, Broadway", level: 92, critical: true },
-    { id: "TNK-031", address: "Blk 4 Lot 9, Broadway", level: 87, critical: true },
+    { id: "TNK-042", resident: "Christofe O.", address: "Blk 12 Lot 4, Broadway", level: 96, critical: true },
+    { id: "TNK-018", resident: "Kein T.", address: "Blk 7 Lot 22, Broadway", level: 92, critical: true },
+    { id: "TNK-031", resident: "Niel P.", address: "Blk 4 Lot 9, Broadway", level: 87, critical: true },
   ],
   tanks: [
     { id: "TNK-042", resident: "Christofe O.", address: "Blk 12 Lot 4, Broadway", level: 96, date: "Mar 14, 2026", action: "Dispatch" },
@@ -37,25 +40,24 @@ const SAMPLE_ADMIN_DATA = {
   ],
 };
 
-export default function AdminDashboard() {
+export default function AdminDashboard({ navigate }) {
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
+  const routerNavigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [selectedTank, setSelectedTank] = useState(null);
+  const [dispatchTank, setDispatchTank] = useState(null);
   const soon = (name) => window.alert(`${name} will be connected in the next step.`);
+  const signOut = async () => {
+    await logout();
+    routerNavigate("/");
+  };
+  const goToTanks = navigate ?? (() => routerNavigate("/admin/tanks"));
+  const confirmDispatch = ({ tankId, contractor, date }) =>
+    window.alert(`${tankId} desludging ${dispatchTank?.action === "Dispatch" ? "dispatched" : "scheduled"} to ${contractor} on ${date}. (Sample data — will save to the API later.)`);
 
   return (
     <div className="min-h-screen bg-background text-foreground lg:flex">
-      <AdminSidebar
-        open={open}
-        setOpen={setOpen}
-        navigate={navigate}
-        user={user}
-        active="Dashboard"
-        signOut={async () => {
-          await logout();
-          navigate("/");
-        }}
-      />
+      <AdminSidebar open={open} setOpen={setOpen} navigate={navigate ?? routerNavigate} user={user} signOut={signOut} active="Dashboard" />
       {open && (
         <button
           className="fixed inset-0 z-30 bg-background/80 lg:hidden"
@@ -76,10 +78,7 @@ export default function AdminDashboard() {
               <h1 className="mt-1 font-display text-xl font-bold">Dashboard</h1>
             </div>
           </div>
-          <button onClick={() => soon("Notifications")} className="relative rounded-full bg-muted p-2" aria-label="Notifications">
-            <Bell className="h-4 w-4" />
-            <b className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[8px]">5</b>
-          </button>
+          <NotificationPopover />
         </header>
 
         <main className="mx-auto max-w-[1440px] space-y-5 p-4 sm:p-7">
@@ -110,7 +109,7 @@ export default function AdminDashboard() {
 
           <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
             <Distribution />
-            <CriticalAlerts onAction={soon} />
+            <CriticalAlerts onView={setSelectedTank} />
           </div>
 
           <section className="rounded-lg border border-border bg-card p-5">
@@ -119,7 +118,7 @@ export default function AdminDashboard() {
                 <h2 className="font-display text-sm font-semibold">Priority Tanks</h2>
                 <p className="mt-1 text-[10px] text-muted-foreground">High-priority tank monitoring</p>
               </div>
-              <button onClick={() => soon("All tanks")} className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-[10px]">
+              <button onClick={goToTanks} className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-[10px]">
                 View All <ChevronRight className="h-3 w-3" />
               </button>
             </div>
@@ -138,7 +137,11 @@ export default function AdminDashboard() {
                 <tbody>
                   {SAMPLE_ADMIN_DATA.tanks.map((t) => (
                     <tr key={t.id} className="border-b border-border/70 text-[11px] last:border-0">
-                      <td className="px-3 py-4 font-medium">{t.id}</td>
+                      <td className="px-3 py-4 font-medium">
+                        <button onClick={() => setSelectedTank(t)} className="text-primary hover:underline">
+                          {t.id}
+                        </button>
+                      </td>
                       <td>{t.resident}</td>
                       <td className="text-muted-foreground">{t.address}</td>
                       <td>
@@ -147,7 +150,7 @@ export default function AdminDashboard() {
                       <td>{t.date}</td>
                       <td className="text-right">
                         <button
-                          onClick={() => soon(`${t.action} ${t.id}`)}
+                          onClick={() => setDispatchTank(t)}
                           className="rounded-md bg-primary px-4 py-2 text-[10px] font-medium text-primary-foreground"
                         >
                           {t.action}
@@ -161,6 +164,8 @@ export default function AdminDashboard() {
           </section>
         </main>
       </div>
+      <TankPanel tank={selectedTank} onClose={() => setSelectedTank(null)} onAction={soon} />
+      <DispatchModal tank={dispatchTank} onClose={() => setDispatchTank(null)} onConfirm={confirmDispatch} />
     </div>
   );
 }
@@ -219,7 +224,7 @@ function Distribution() {
   );
 }
 
-function CriticalAlerts({ onAction }) {
+function CriticalAlerts({ onView }) {
   return (
     <section className="rounded-lg border border-border bg-card p-5">
       <div className="flex items-center justify-between">
@@ -242,7 +247,7 @@ function CriticalAlerts({ onAction }) {
               <p className="mt-1 text-[9px] text-muted-foreground">{a.address}</p>
             </div>
             <strong className={`mr-4 text-sm ${a.critical ? "text-danger" : "text-warning"}`}>{a.level}%</strong>
-            <button onClick={() => onAction(`Tank ${a.id}`)} className="rounded-md bg-primary px-3 py-2 text-[10px] text-primary-foreground">
+            <button onClick={() => onView(a)} className="rounded-md bg-primary px-3 py-2 text-[10px] text-primary-foreground">
               View
             </button>
           </div>

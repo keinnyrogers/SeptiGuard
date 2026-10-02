@@ -1,7 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import {
-  Droplet,
   Eye,
   EyeOff,
   Home,
@@ -9,6 +8,7 @@ import {
   Loader2,
   Lock,
   Mail,
+  Phone,
   ShieldCheck,
   User,
   UserPlus,
@@ -21,7 +21,7 @@ export default function Register() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [blockLot, setBlockLot] = useState("");
-  const [tankId, setTankId] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -40,6 +40,7 @@ export default function Register() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
       return setError("Please enter a valid email address.");
     if (!blockLot.trim()) return setError("Please enter your block and lot.");
+    if (!phone.trim()) return setError("Please enter your contact number.");
     if (password.length < 8)
       return setError("Password must be at least 8 characters.");
     if (password !== confirm) return setError("Passwords do not match.");
@@ -51,8 +52,8 @@ export default function Register() {
       await registerRequest({
         name: name.trim(),
         email: email.trim(),
-        block_lot: blockLot.trim(),
-        tank_id: tankId.trim() || null,
+        address: blockLot.trim(),
+        contact_number: phone.trim(),
         password,
         password_confirmation: confirm,
       });
@@ -223,7 +224,7 @@ export default function Register() {
                 </div>
               </div>
 
-              {/* Block & Lot + Tank ID */}
+              {/* Household location and contact */}
               <div className="grid gap-5 sm:grid-cols-2">
                 <div className="space-y-2">
                   <label htmlFor="blockLot" className="block text-sm font-medium text-muted-foreground">
@@ -242,17 +243,19 @@ export default function Register() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label htmlFor="tankId" className="block text-sm font-medium text-muted-foreground">
-                    Tank ID
+                  <label htmlFor="phone" className="block text-sm font-medium text-muted-foreground">
+                    Contact Number
                   </label>
                   <div className="relative">
-                    <Droplet className="pointer-events-none absolute left-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-muted-foreground" />
+                    <Phone className="pointer-events-none absolute left-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-muted-foreground" />
                     <input
-                      id="tankId"
-                      maxLength={30}
-                      placeholder="TK-0042"
-                      value={tankId}
-                      onChange={(e) => setTankId(e.target.value)}
+                      id="phone"
+                      type="tel"
+                      autoComplete="tel"
+                      maxLength={20}
+                      placeholder="09XX XXX XXXX"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
                       className={fieldClass}
                     />
                   </div>

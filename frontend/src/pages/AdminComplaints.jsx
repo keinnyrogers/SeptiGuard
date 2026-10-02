@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { formatDistanceToNowStrict, isAfter, isBefore, startOfDay, endOfDay } from "date-fns";
 import {
   Search,
-  SlidersHorizontal,
   CalendarDays,
   MessageSquare,
   AlertCircle,
@@ -306,10 +305,6 @@ export default function AdminComplaints() {
                 </PopoverContent>
               </Popover>
 
-              <Button variant="outline" className="gap-2">
-                <SlidersHorizontal className="h-4 w-4" />
-                More Filters
-              </Button>
             </div>
           </div>
 
@@ -442,8 +437,14 @@ export default function AdminComplaints() {
           ))}
 
           {visible.length === 0 && (
-            <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-              No complaints match the current filters.
+            <div className="rounded-lg border border-dashed border-border p-10 text-center">
+              <p className="text-sm font-medium">{complaints.length === 0 ? "No complaints filed" : "No complaints match these filters"}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{complaints.length === 0 ? "New resident reports will appear here." : "Try changing your search, status, category, priority, or date range."}</p>
+              {complaints.length > 0 && (
+                <Button type="button" variant="outline" className="mt-4" onClick={() => { setQuery(""); setCategory("all"); setPriority("all"); setRange(undefined); setTab("all"); setSort("newest"); }}>
+                  Clear filters
+                </Button>
+              )}
             </div>
           )}
         </div>
