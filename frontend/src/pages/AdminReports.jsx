@@ -13,6 +13,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { AdminSidebar } from "@/components/AdminSidebar";
+import ThemedSelect from "../components/ThemedSelect.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { SAMPLE_DATA, CATEGORY_LABELS, STATUS_LABELS } from "@/data/complaints";
 import { SAMPLE_RESIDENTS } from "@/data/residents";
@@ -125,7 +126,6 @@ export default function AdminReports() {
     { label: "Desludging Events", value: desludgingEvents, sub: "Resolved this month", icon: Wrench, chip: "bg-warning/15 text-warning" },
     { label: "Unresolved Complaints", value: unresolved, sub: "Pending or in progress", icon: CircleAlert, chip: "bg-danger/15 text-danger" },
   ];
-  const selectClass = "h-10 appearance-none rounded-md border border-input bg-card pl-9 pr-9 text-sm text-foreground outline-none focus:border-ring";
   const signOut = async () => {
     await logout();
     navigate("/");
@@ -134,13 +134,15 @@ export default function AdminReports() {
   return (
     <div className="min-h-screen bg-background">
       <AdminSidebar open={menuOpen} setOpen={setMenuOpen} navigate={navigate} user={user} active="Reports" signOut={signOut} />
-      <button type="button" onClick={() => setMenuOpen(true)} aria-label="Open menu" className="fixed left-3 top-3 z-30 rounded-md border border-border bg-card p-2 lg:hidden"><Menu className="h-4 w-4" /></button>
-
-      <main className="min-w-0 px-5 py-6 md:px-8 lg:ml-52">
-        <div>
-          <p className="text-sm text-muted-foreground">Admin Portal <span className="mx-1">›</span><span className="text-foreground">Reports</span></p>
-          <h1 className="mt-1 text-2xl font-bold md:text-3xl">Reports &amp; Analytics</h1>
-        </div>
+      <main className="min-w-0 flex-1 lg:ml-52">
+        <header className="flex min-h-20 items-center gap-3 border-b border-border px-4 py-4 sm:px-7">
+          <button type="button" onClick={() => setMenuOpen(true)} aria-label="Open menu" className="shrink-0 rounded-md border border-border p-2 lg:hidden"><Menu className="h-4 w-4" /></button>
+          <div className="min-w-0">
+            <p className="truncate text-[10px] text-muted-foreground sm:text-xs">Admin Portal › Reports</p>
+            <h1 className="mt-1 font-display text-lg font-bold sm:text-xl">Reports &amp; Analytics</h1>
+          </div>
+        </header>
+        <div className="px-5 py-6 md:px-8">
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {stats.map((stat) => (
@@ -160,17 +162,13 @@ export default function AdminReports() {
             <label className="relative">
               <span className="sr-only">Date Range</span>
               <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <select value={dateRange} onChange={(event) => setDateRange(event.target.value)} className={`${selectClass} w-full sm:w-48`}>
-                {DATE_RANGES.map((range) => <option key={range.value} value={range.value}>Date Range: {range.label}</option>)}
-              </select>
+              <ThemedSelect value={dateRange} onChange={setDateRange} options={DATE_RANGES.map((range) => ({ value: range.value, label: `Date Range: ${range.label}` }))} className="w-full sm:w-48" />
               <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             </label>
             <label className="relative">
               <span className="sr-only">Report Type</span>
               <SlidersHorizontal className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <select value={reportType} onChange={(event) => setReportType(event.target.value)} className={`${selectClass} w-full sm:w-52`}>
-                {REPORT_TYPES.map((type) => <option key={type} value={type}>Report Type: {type}</option>)}
-              </select>
+              <ThemedSelect value={reportType} onChange={setReportType} options={REPORT_TYPES.map((type) => ({ value: type, label: `Report Type: ${type}` }))} className="w-full sm:w-52" />
               <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             </label>
           </div>
@@ -250,6 +248,7 @@ export default function AdminReports() {
             </table>
           </div>
         </section>
+        </div>
       </main>
     </div>
   );

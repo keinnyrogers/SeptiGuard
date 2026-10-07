@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Activity, ArrowLeft, Bell, Bot, ChevronDown, FileWarning,
+  Activity, ArrowLeft, Bell, Bot, FileWarning,
   Home, LogOut, Menu, Phone, Save, ShieldCheck, Send,
   Upload, User, UserRound, Wrench, X,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
+import ThemedSelect from "../components/ThemedSelect.jsx";
 
 /* ==================================================================
    SeptiGuard — File New Complaint (Resident)
@@ -463,23 +464,7 @@ function Field({ label, required, optional, error, rightLabel, children }) {
 
 function SelectBox({ value, onChange, placeholder, options }) {
   return (
-    <div className="relative">
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full appearance-none rounded-md border border-border bg-muted/40 px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary/50 [&>option]:bg-[#12121a] [&>option]:text-foreground"
-      >
-        <option value="" disabled className="bg-[#12121a] text-muted-foreground">
-          {placeholder}
-        </option>
-        {options.map((o) => (
-          <option key={o.value} value={o.value} className="bg-[#12121a] text-foreground">
-            {o.label}
-          </option>
-        ))}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-    </div>
+    <ThemedSelect value={value} onChange={onChange} placeholder={placeholder} options={options} />
   );
 }
 

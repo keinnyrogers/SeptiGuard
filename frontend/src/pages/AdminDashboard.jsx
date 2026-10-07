@@ -78,7 +78,7 @@ export default function AdminDashboard({ navigate }) {
               <h1 className="mt-1 font-display text-xl font-bold">Dashboard</h1>
             </div>
           </div>
-          <NotificationPopover />
+          <NotificationPopover demoMode />
         </header>
 
         <main className="mx-auto max-w-[1440px] space-y-5 p-4 sm:p-7">

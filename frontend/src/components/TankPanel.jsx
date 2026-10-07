@@ -41,6 +41,16 @@ export default function TankPanel({ tank, onClose, onAction = () => {} }) {
     return () => cancelAnimationFrame(frame);
   }, [tank]);
 
+  useEffect(() => {
+    if (!tank) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [tank]);
+
   if (!tank) return null;
 
   const status = tank.status ?? statusOf(tank.level);
@@ -54,7 +64,7 @@ export default function TankPanel({ tank, onClose, onAction = () => {} }) {
 
   return (
     <div className={`fixed inset-0 z-50 flex justify-end bg-background/80 transition-opacity duration-300 ${isVisible ? "opacity-100" : "opacity-0"}`} onClick={onClose}>
-      <aside onClick={(e) => e.stopPropagation()} className={`flex h-full w-full max-w-md flex-col border-l border-border bg-card transition-transform duration-300 ease-out will-change-transform ${isVisible ? "translate-x-0" : "translate-x-full"}`}>
+      <aside onClick={(e) => e.stopPropagation()} className={`flex h-[100svh] min-h-0 max-h-[100svh] w-full flex-col border-l border-border bg-card transition-transform duration-300 ease-out will-change-transform lg:max-w-md ${isVisible ? "translate-x-0" : "translate-x-full"}`}>
         <header className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
           <div className="flex items-center gap-3">
             <span className="flex h-11 w-11 items-center justify-center rounded-md bg-primary/15">
@@ -70,7 +80,7 @@ export default function TankPanel({ tank, onClose, onAction = () => {} }) {
           </button>
         </header>
 
-        <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5">
+        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5">
           <section className="space-y-4">
             <span className={`inline-block rounded-md px-2 py-1 text-xs font-medium ${meta.bg} ${meta.text}`}>{meta.label}</span>
 
@@ -124,14 +134,14 @@ export default function TankPanel({ tank, onClose, onAction = () => {} }) {
           </section>
         </div>
 
-        <footer className="flex justify-end gap-2 border-t border-border px-5 py-4">
-          <button type="button" onClick={onClose} className="h-10 rounded-md border border-border px-4 text-sm hover:bg-muted">
+        <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-border bg-card px-5 py-4 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onClose} className="h-10 w-full rounded-md border border-border px-4 text-sm hover:bg-muted sm:w-auto">
             Close
           </button>
           <button
             type="button"
             onClick={() => onAction(`${actionLabel} for ${tank.id}`)}
-            className="h-10 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90"
+            className="h-10 w-full rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90 sm:w-auto"
           >
             {actionLabel}
           </button>

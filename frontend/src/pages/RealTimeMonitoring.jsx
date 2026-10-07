@@ -10,6 +10,7 @@ import {
   UserRound, Wifi, Wrench,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
+import ResidentEmptyPage from "../components/ResidentEmptyPage.jsx";
 
 /* ==================================================================
    SeptiGuard — Real-Time Monitoring (Resident)
@@ -80,12 +81,16 @@ export default function RealTimeMonitoring() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [range, setRange] = useState("7");
-  const data = SAMPLE_DATA;
+  const data = user?.demo_mode ? SAMPLE_DATA : null;
   const [refreshing, setRefreshing] = useState(false);
 
   const first = user?.name?.split(" ")[0] ?? "Resident";
   const soon = (name) => window.alert(`${name} will be connected in the next step.`);
   const signOut = async () => { await logout(); navigate("/"); };
+
+  if (!data) {
+    return <ResidentEmptyPage active="Monitoring" title="Real-Time Monitoring" description="Live readings and sensor status will appear here after the HOA links a sensor to your household." />;
+  }
 
   const statusKey = getStatusKey(data.fillLevel);
   const statusMeta = THRESHOLDS.find((t) => t.key === statusKey);
@@ -152,23 +157,23 @@ export default function RealTimeMonitoring() {
 
       {/* ======================= MAIN ======================= */}
       <div className="page-transition min-w-0 flex-1 lg:ml-24">
-        <header className="flex h-20 items-center justify-between border-b border-border px-4 sm:px-7">
-          <div className="flex items-center gap-3">
-            <button className="rounded-md border border-border p-2 lg:hidden" onClick={() => setOpen(true)}>
+        <header className="flex items-start justify-between gap-2 border-b border-border px-4 py-4 sm:px-7 sm:py-0 sm:h-20 sm:items-center">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <button className="shrink-0 rounded-md border border-border p-2 lg:hidden" onClick={() => setOpen(true)}>
               <Menu className="h-4 w-4" />
             </button>
-            <div>
-              <p className="text-xs text-muted-foreground">Resident Portal › Real-Time Monitoring</p>
-              <h1 className="mt-1 font-display text-xl font-bold">Real-Time Monitoring</h1>
+            <div className="min-w-0">
+              <p className="truncate text-[10px] text-muted-foreground sm:text-xs">Resident Portal › Real-Time Monitoring</p>
+              <h1 className="mt-1 truncate font-display text-lg font-bold sm:text-xl">Real-Time Monitoring</h1>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             <button
               onClick={handleRefresh}
-              className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+              className="flex items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground sm:px-4 sm:py-2 sm:text-sm"
             >
-              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-              Refresh
+              <RefreshCw className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${refreshing ? "animate-spin" : ""}`} />
+              <span className="whitespace-nowrap">Refresh</span>
             </button>
             <button onClick={() => soon("Settings")} className="rounded-md border border-border p-2">
               <Settings className="h-4 w-4" />

@@ -32,6 +32,16 @@ export default function DevicePanel({ device, onClose, onSave }) {
     if (device) setForm(device);
   }, [device]);
 
+  useEffect(() => {
+    if (!device) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [device]);
+
   if (!device) return null;
   const offline = device.status === "offline";
 
@@ -45,7 +55,7 @@ export default function DevicePanel({ device, onClose, onSave }) {
     <div className="panel-overlay-in fixed inset-0 z-50 flex justify-end overflow-hidden bg-black/80" onClick={onClose}>
       <aside
         onClick={(e) => e.stopPropagation()}
-        className="panel-slide-in flex h-full w-full max-w-md flex-col border-l border-border bg-card"
+        className="panel-slide-in flex h-[100svh] min-h-0 max-h-[100svh] w-full flex-col border-l border-border bg-card lg:max-w-md"
       >
         <header className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
           <div className="flex items-center gap-3">
@@ -63,7 +73,7 @@ export default function DevicePanel({ device, onClose, onSave }) {
         </header>
 
         <form onSubmit={submit} className="flex flex-1 flex-col overflow-hidden">
-          <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5">
+          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5">
             <section className="space-y-3">
               <div className="flex flex-wrap gap-2">
                 <span className={`rounded-md px-2 py-1 text-xs font-medium capitalize ${STATUS_BADGE[device.status]}`}>{device.status}</span>
@@ -134,9 +144,9 @@ export default function DevicePanel({ device, onClose, onSave }) {
             </section>
           </div>
 
-          <footer className="flex justify-end gap-2 border-t border-border px-5 py-4">
-            <button type="button" onClick={onClose} className="h-10 rounded-md border border-border px-4 text-sm hover:bg-muted">Cancel</button>
-            <button type="submit" className="flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90">
+          <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-border bg-card px-5 py-4 sm:flex-row sm:justify-end">
+            <button type="button" onClick={onClose} className="h-10 w-full rounded-md border border-border px-4 text-sm hover:bg-muted sm:w-auto">Cancel</button>
+            <button type="submit" className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90 sm:w-auto">
               <Save className="h-4 w-4" /> Save changes
             </button>
           </footer>

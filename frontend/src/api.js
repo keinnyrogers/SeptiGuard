@@ -13,21 +13,33 @@ const TOKEN_STORAGE_KEY = "septiguard_token";
 const USER_STORAGE_KEY = "septiguard_user";
 
 /** Normalise the many shapes a Laravel login endpoint might return. */
+function normaliseUser(rawUser = {}) {
+  const residentProfile = rawUser.resident_profile ?? rawUser.residentProfile ?? null;
+  const septicSystem = rawUser.septic_system ?? rawUser.septicSystem ?? null;
+
+  return {
+    ...rawUser,
+    role: ["admin", "hoa_admin"].includes(rawUser.role) ? "admin" : "resident",
+    demo_mode: Boolean(rawUser.demo_mode ?? rawUser.demoMode ?? false),
+    resident_profile: residentProfile,
+    septic_system: septicSystem,
+  };
+}
+
 function normaliseLoginResponse(data) {
   const obj = data ?? {};
   const dataNested = obj.data ?? {};
   const token =
     obj.token ?? obj.access_token ?? dataNested.token ?? "";
-  const user = obj.user ?? dataNested.user ?? null;
+  const user = normaliseUser(obj.user ?? dataNested.user ?? null);
 
   if (!token || !user) {
     throw new Error("Invalid response from server: missing token or user.");
   }
 
-  const role = ["admin", "hoa_admin"].includes(user.role) ? "admin" : "resident";
   return {
     token,
-    user: { ...user, role },
+    user,
   };
 }
 
@@ -180,7 +192,8 @@ export function readStoredSession() {
   const userRaw = window.localStorage.getItem(USER_STORAGE_KEY);
   if (!token || !userRaw) return null;
   try {
-    return { token, user: JSON.parse(userRaw) };
+    const parsedUser = JSON.parse(userRaw);
+    return { token, user: normaliseUser(parsedUser) };
   } catch {
     return null;
   }

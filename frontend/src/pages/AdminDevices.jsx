@@ -129,18 +129,20 @@ export default function AdminDevices() {
           navigate("/");
         }}
       />
-      <button type="button" onClick={() => setMenuOpen(true)} aria-label="Open menu" className="fixed left-3 top-3 z-30 rounded-md border border-border bg-card p-2 lg:hidden"><Menu className="h-4 w-4" /></button>
-
-      <main className="min-w-0 px-5 py-6 md:px-8 lg:ml-52">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <p className="text-sm text-muted-foreground">Admin Portal <span className="mx-1">›</span><span className="text-foreground">Devices</span></p>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight md:text-3xl">Sensor / IoT Devices</h1>
+      <main className="min-w-0 flex-1 lg:ml-52">
+        <header className="flex min-h-20 items-center justify-between gap-3 border-b border-border px-4 py-4 sm:px-7">
+          <div className="flex min-w-0 items-center gap-3">
+            <button type="button" onClick={() => setMenuOpen(true)} aria-label="Open menu" className="shrink-0 rounded-md border border-border p-2 lg:hidden"><Menu className="h-4 w-4" /></button>
+            <div className="min-w-0">
+              <p className="truncate text-[10px] text-muted-foreground sm:text-xs">Admin Portal › Devices</p>
+              <h1 className="mt-1 font-display text-lg font-bold sm:text-xl">Sensor / IoT Devices</h1>
+            </div>
           </div>
-          <button onClick={() => setFormOpen(true)} className="flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90">
-            <Plus className="h-4 w-4" /> Add Device
+          <button onClick={() => setFormOpen(true)} className="flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:opacity-90 sm:h-10 sm:gap-2 sm:px-4 sm:text-sm">
+            <Plus className="h-4 w-4" /> <span className="whitespace-nowrap">Add Device</span>
           </button>
-        </div>
+        </header>
+        <div className="px-5 py-6 md:px-8">
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {stats.map((s) => (
@@ -239,6 +241,7 @@ export default function AdminDevices() {
             </tbody>
           </table>
           <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">Showing {visible.length} of {devices.length} devices</p>
+        </div>
         </div>
       </main>
 

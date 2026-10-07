@@ -9,9 +9,10 @@ const SAMPLE_NOTIFICATIONS = [
   { icon: Zap, tone: "text-muted-foreground", title: "Firmware updated to v2.1.4", detail: "Improved accuracy and battery efficiency.", time: "2d", unread: false },
 ];
 
-export default function NotificationPopover({ onViewAll }) {
+export default function NotificationPopover({ onViewAll, demoMode = false }) {
   const [open, setOpen] = useState(false);
-  const [notifications, setNotifications] = useState(SAMPLE_NOTIFICATIONS);
+  const [sampleNotifications, setSampleNotifications] = useState(SAMPLE_NOTIFICATIONS);
+  const notifications = demoMode ? sampleNotifications : [];
   const ref = useRef(null);
   const unread = notifications.filter((n) => n.unread).length;
 
@@ -50,16 +51,14 @@ export default function NotificationPopover({ onViewAll }) {
         <div className="absolute right-0 z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-border bg-card shadow-2xl">
           <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
             <p className="font-display text-xs font-bold uppercase tracking-widest">Notifications</p>
-            <button
+            {notifications.length > 0 && <button
               type="button"
-              onClick={() => setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })))}
+              onClick={() => setSampleNotifications((prev) => prev.map((n) => ({ ...n, unread: false })))}
               className="text-[10px] font-semibold text-primary hover:text-primary/80"
-            >
-              Mark all as read
-            </button>
+            >Mark all as read</button>}
           </div>
           <ul className="max-h-80 divide-y divide-border overflow-y-auto">
-            {notifications.map((n) => (
+            {notifications.length === 0 ? <li className="px-4 py-8 text-center text-xs text-muted-foreground">No notifications yet.</li> : notifications.map((n) => (
               <li key={n.title} className={`flex gap-3 px-4 py-3 ${n.unread ? "bg-primary/5" : ""}`}>
                 <n.icon className={`mt-0.5 h-4 w-4 shrink-0 ${n.tone}`} />
                 <div className="min-w-0 flex-1">

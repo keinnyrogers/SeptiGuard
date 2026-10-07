@@ -31,6 +31,7 @@ class DatabaseSeeder extends Seeder
             'password' => 'password123',
             'role' => 'resident',
             'account_status' => 'approved',
+            'demo_mode' => true,
         ]);
 
         $septicSystem = SepticSystem::create([

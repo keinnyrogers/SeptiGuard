@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Activity, ArrowRight, Bell, Bot, CalendarDays, FileWarning,
+  Activity, Bell, Bot, CalendarDays, FileWarning,
   Home, LogOut, Menu, ShieldCheck, UserRound, Wrench,
   CheckCircle2, Clock, Hourglass,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
+import ResidentEmptyPage from "../components/ResidentEmptyPage.jsx";
+import RequestMaintenancePanel from "../components/RequestMaintenancePanel.jsx";
 
 /* ==================================================================
    SeptiGuard — Maintain (Resident)
@@ -76,12 +78,24 @@ export default function Maintain() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const [data] = useState(SAMPLE_DATA);
-  const [requesting, setRequesting] = useState(false);
+  const data = user?.demo_mode ? SAMPLE_DATA : null;
+  const [requestPanelOpen, setRequestPanelOpen] = useState(false);
 
   const first = user?.name?.split(" ")[0] ?? "Resident";
   const soon = (name) => window.alert(`${name} will be connected in the next step.`);
   const signOut = async () => { await logout(); navigate("/"); };
+
+  if (!data) {
+    return (
+      <ResidentEmptyPage
+        active="Maintain"
+        title="Maintenance History"
+        description="Tank service records appear after a septic system is linked to your household. You can still submit a maintenance request for the HOA to review."
+        actionLabel="Request maintenance"
+        onAction={() => navigate("/complaints/new")}
+      />
+    );
+  }
 
   /* ---------- API CALL — i-uncomment kapag ready na ang backend ----------
   useEffect(() => {
@@ -94,9 +108,8 @@ export default function Maintain() {
   }, []);
   ---------------------------------------------------------------------- */
 
-  const requestMaintenance = () => {
-    setRequesting(true);
-    /* ---------- Reuses the existing complaints endpoint ----------
+  const requestMaintenance = () => setRequestPanelOpen(true);
+  /* ---------- Reuses the existing complaints endpoint ----------
     Ito ang pinaka-simpleng paraan: mag-file lang ng complaint
     na category = "septic_tank", priority = "medium", tapos
     ang subject/description ay auto-filled na "Maintenance /
@@ -110,11 +123,6 @@ export default function Maintain() {
       description: "Resident is requesting scheduled maintenance for their septic tank.",
     }, { headers: { Authorization: `Bearer ${token}` } });
     ---------------------------------------------------------------- */
-    setTimeout(() => {
-      setRequesting(false);
-      window.alert("Maintenance request sent to HOA! (sample — not yet connected to backend)");
-    }, 700);
-  };
 
   return (
     <div className="min-h-screen bg-background text-foreground lg:flex">
@@ -158,24 +166,25 @@ export default function Maintain() {
 
       {/* ======================= MAIN ======================= */}
       <div className="page-transition min-w-0 flex-1 lg:ml-24">
-        <header className="flex h-20 items-center justify-between border-b border-border px-4 sm:px-7">
-          <div className="flex items-center gap-3">
-            <button className="rounded-md border border-border p-2 lg:hidden" onClick={() => setOpen(true)}>
+        <header className="flex items-start justify-between gap-2 border-b border-border px-4 py-4 sm:px-7 sm:py-0 sm:h-20 sm:items-center">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <button className="shrink-0 rounded-md border border-border p-2 lg:hidden" onClick={() => setOpen(true)}>
               <Menu className="h-4 w-4" />
             </button>
-            <div>
-              <p className="text-xs text-muted-foreground">Resident Portal › Maintenance</p>
-              <h1 className="mt-1 font-display text-xl font-bold">Maintenance History</h1>
+            <div className="min-w-0">
+              <p className="truncate text-[10px] text-muted-foreground sm:text-xs">Resident Portal › Maintenance</p>
+              <h1 className="mt-1 truncate font-display text-lg font-bold sm:text-xl">Maintenance History</h1>
             </div>
           </div>
-          <button
-            onClick={requestMaintenance}
-            disabled={requesting}
-            className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
-          >
-            <Wrench className="h-4 w-4" />
-            {requesting ? "Sending..." : "Request Maintenance"}
-          </button>
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <button
+              onClick={requestMaintenance}
+              className="flex items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground sm:px-4 sm:py-2 sm:text-sm"
+            >
+              <Wrench className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="whitespace-nowrap">Request Maintenance</span>
+            </button>
+          </div>
         </header>
 
         <main className="mx-auto max-w-[1440px] space-y-5 p-4 sm:p-7">
@@ -236,6 +245,12 @@ export default function Maintain() {
           </section>
         </main>
       </div>
+      <RequestMaintenancePanel
+        open={requestPanelOpen}
+        onClose={() => setRequestPanelOpen(false)}
+        lastMaintenance={data.lastMaintenance}
+        nextDue={data.nextDueEstimate}
+      />
     </div>
   );
 }

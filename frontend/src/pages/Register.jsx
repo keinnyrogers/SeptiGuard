@@ -123,7 +123,7 @@ export default function Register() {
       <main className="relative flex w-full flex-col bg-background px-6 py-8 sm:px-10 lg:w-1/2 lg:px-14 lg:py-12">
         <div className="pointer-events-none absolute right-0 top-0 h-64 w-64 rounded-full bg-primary/10 blur-[90px] lg:hidden" />
 
-        <div className="relative z-10 flex justify-end">
+        <div className="relative z-10 hidden justify-end lg:flex">
           <p className="text-sm text-muted-foreground">
             Already have an account?{" "}
             <Link to="/" className="font-medium text-primary hover:underline">
@@ -368,6 +368,13 @@ export default function Register() {
               </div>
             </form>
           )}
+
+          <div className="mt-4 flex justify-center text-sm text-muted-foreground lg:hidden">
+            Already have an account?{" "}
+            <Link to="/" className="ml-1 font-medium text-primary hover:underline">
+              Sign In
+            </Link>
+          </div>
         </div>
 
         <div className="relative z-10">

@@ -1,6 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
 import {
   Activity, Bell, BellOff, Bot, CheckCheck, CircleAlert, CircleCheck,
   FileWarning, Home, Info, LogOut, Menu, Search, ShieldCheck,
@@ -129,12 +128,14 @@ const SAMPLE_NOTIFICATIONS = [
     is_read: true,
   },
 ];
+const EMPTY_NOTIFICATIONS = [];
 
 export default function Alerts() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const [notifications, setNotifications] = useState(SAMPLE_NOTIFICATIONS);
+  const [sampleNotifications, setSampleNotifications] = useState(SAMPLE_NOTIFICATIONS);
+  const notifications = user?.demo_mode ? sampleNotifications : EMPTY_NOTIFICATIONS;
   const [tab, setTab] = useState("all");
   const [query, setQuery] = useState("");
 
@@ -194,18 +195,18 @@ export default function Alerts() {
   }, [filtered]);
 
   const markAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    setSampleNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
     /* axios.post("/api/notifications/mark-all-read") kapag ready */
   };
 
   const dismiss = (id) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    setSampleNotifications((prev) => prev.filter((n) => n.id !== id));
     /* client-side lang muna — walang dismissed_at column pa sa DB */
   };
 
   const openAction = (n) => {
     if (!n.is_read) {
-      setNotifications((prev) => prev.map((x) => x.id === n.id ? { ...x, is_read: true } : x));
+      setSampleNotifications((prev) => prev.map((x) => x.id === n.id ? { ...x, is_read: true } : x));
     }
     if (n.action?.to) navigate(n.action.to);
   };

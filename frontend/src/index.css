@@ -85,6 +85,7 @@
 
 @layer base {
   * {
+    box-sizing: border-box;
     border-color: var(--color-border);
   }
 
@@ -96,10 +97,22 @@
     cursor: not-allowed;
   }
 
+  select,
+  select option {
+    color-scheme: dark;
+    background-color: var(--card);
+    color: var(--foreground);
+  }
+
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
+    overflow-x: hidden;
+  }
+
+  #root {
+    min-height: 100vh;
   }
 
   input:-webkit-autofill,

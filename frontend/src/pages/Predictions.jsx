@@ -1,6 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine,
@@ -11,6 +10,7 @@ import {
   ShieldCheck, TrendingUp, UserRound, Wrench,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
+import ResidentEmptyPage from "../components/ResidentEmptyPage.jsx";
 
 /* ==================================================================
    SeptiGuard — Predictions (Resident)
@@ -116,11 +116,15 @@ export default function Predictions() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const [data, setData] = useState(SAMPLE_DATA);
+  const [data] = useState(SAMPLE_DATA);
 
   const first = user?.name?.split(" ")[0] ?? "Resident";
   const soon = (name) => window.alert(`${name} will be connected in the next step.`);
   const signOut = async () => { await logout(); navigate("/"); };
+
+  if (!user?.demo_mode) {
+    return <ResidentEmptyPage active="Predict" title="Predictions" description="Forecasts appear after a sensor is linked and enough tank readings have been collected." />;
+  }
 
   /* ---------- API CALL — i-uncomment kapag ready na ang backend ----------
   useEffect(() => {

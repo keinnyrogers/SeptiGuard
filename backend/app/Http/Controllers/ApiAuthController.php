@@ -36,7 +36,7 @@ class ApiAuthController extends Controller
 
         return response()->json([
             'token' => $token,
-            'user' => $user,
+            'user' => $user->load('residentProfile'),
         ]);
     }
 
@@ -57,6 +57,7 @@ class ApiAuthController extends Controller
                 'password' => $validated['password'],
                 'role' => 'resident',
                 'account_status' => 'pending',
+                'demo_mode' => false,
             ]);
 
             $user->residentProfile()->create([

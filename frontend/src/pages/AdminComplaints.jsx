@@ -197,16 +197,15 @@ export default function AdminComplaints() {
           navigate("/");
         }}
       />
-      <button type="button" onClick={() => setMenuOpen(true)} aria-label="Open menu" className="fixed left-3 top-3 z-30 rounded-md border border-border bg-card p-2 lg:hidden"><Menu className="h-4 w-4" /></button>
-
-      <main className="page-transition min-w-0 px-5 py-6 md:px-8 lg:ml-52">
-        <p className="text-sm text-muted-foreground">
-          Admin Portal <span className="mx-1">›</span>
-          <span className="text-foreground">Complaints</span>
-        </p>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight md:text-3xl">
-          Complaints Management
-        </h1>
+      <main className="page-transition min-w-0 flex-1 lg:ml-52">
+        <header className="flex min-h-20 items-center gap-3 border-b border-border px-4 py-4 sm:px-7">
+          <button type="button" onClick={() => setMenuOpen(true)} aria-label="Open menu" className="shrink-0 rounded-md border border-border p-2 lg:hidden"><Menu className="h-4 w-4" /></button>
+          <div className="min-w-0">
+            <p className="truncate text-[10px] text-muted-foreground sm:text-xs">Admin Portal › Complaints</p>
+            <h1 className="mt-1 font-display text-lg font-bold sm:text-xl">Complaints Management</h1>
+          </div>
+        </header>
+        <div className="px-5 py-6 md:px-8">
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {stats.map((s) => (
@@ -447,6 +446,7 @@ export default function AdminComplaints() {
               )}
             </div>
           )}
+        </div>
         </div>
       </main>
 

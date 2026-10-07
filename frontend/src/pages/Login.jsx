@@ -156,7 +156,7 @@ export default function Login() {
         <div className="pointer-events-none absolute right-0 top-0 h-64 w-64 rounded-full bg-primary/10 blur-[90px] lg:hidden" />
 
         {/* Top-right sign-up link */}
-        <div className="relative z-10 flex justify-end">
+        <div className="relative z-10 hidden justify-end lg:flex">
           <p className="text-sm text-muted-foreground">
             New resident?{" "}
             <Link to="/register" className="font-medium text-primary hover:underline">
@@ -300,7 +300,7 @@ export default function Login() {
           </form>
 
           {/* Register prompt */}
-          <div className="mt-6 flex items-center gap-3 rounded-lg border border-border bg-card/60 px-4 py-3.5">
+          <div className="mt-6 flex items-center gap-3 rounded-lg border border-border bg-card/60 px-4 py-3.5 lg:flex">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card">
               <UserPlus className="h-4.5 w-4.5 text-muted-foreground" />
             </div>
@@ -311,6 +311,13 @@ export default function Login() {
               </Link>{" "}
               and wait for admin approval.
             </p>
+          </div>
+
+          <div className="mt-4 flex justify-center text-sm text-muted-foreground lg:hidden">
+            New resident?{" "}
+            <Link to="/register" className="ml-1 font-medium text-primary hover:underline">
+              Sign up
+            </Link>
           </div>
         </div>
 

@@ -5,6 +5,8 @@ import {
   MapPin, Menu, MessageSquare, Phone, Save, ShieldCheck, ShieldQuestion, UserRound, Wrench,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
+import ChangePasswordPanel from "../components/ChangePasswordPanel.jsx";
+import RequestInfoChangePanel from "../components/RequestInfoChangePanel.jsx";
 
 // Sample placeholder values only — replace with your Laravel API data later.
 const SAMPLE = {
@@ -40,11 +42,22 @@ export default function Profile() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [passwordPanelOpen, setPasswordPanelOpen] = useState(false);
+  const [infoChangePanelOpen, setInfoChangePanelOpen] = useState(false);
+  const demoMode = Boolean(user?.demo_mode);
+  const profile = user?.resident_profile ?? user?.residentProfile ?? null;
+  const tank = user?.septic_system ?? user?.septicSystem ?? null;
   const [address, setAddress] = useState(SAMPLE.address);
   const [prefs, setPrefs] = useState({ push: true, email: true, sms: false });
 
   const name = user?.name ?? "Resident";
-  const initials = name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
+  const initials = name
+    .split(" ")
+    .filter(Boolean)
+    .map((p) => p[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "R";
   const soon = (what) => window.alert(`${what} will be connected in the next step.`);
   const signOut = async () => { await logout(); navigate("/"); };
 
@@ -85,13 +98,13 @@ export default function Profile() {
               <p className="mt-1 text-xs text-muted-foreground">Manage your account details and preferences</p>
             </div>
           </div>
-          <button onClick={() => soon("Saving address changes")} className="flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground">
-            <Save className="h-4 w-4" /> Save changes
+          <button onClick={() => soon("Saving address changes")} className="flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground sm:h-10 sm:gap-2 sm:px-4 sm:text-sm">
+            <Save className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> <span className="whitespace-nowrap">Save changes</span>
           </button>
         </header>
 
         <main className="mx-auto max-w-[1440px] space-y-5 p-4 sm:p-7">
-          <p className="w-fit rounded border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-primary">Sample data</p>
+          {demoMode && <p className="w-fit rounded border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-primary">Demo data</p>}
 
           <div className="grid gap-5 xl:grid-cols-[0.75fr_1.6fr]">
             <div className="space-y-5">
@@ -101,23 +114,25 @@ export default function Profile() {
                   <button onClick={() => soon("Photo upload")} className="absolute bottom-1 right-1 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground"><Camera className="h-3.5 w-3.5" /></button>
                 </div>
                 <h2 className="mt-4 font-display text-lg font-bold">{name}</h2>
-                <p className="mt-1 text-xs text-muted-foreground">Resident · {SAMPLE.blkLot}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Resident · {demoMode ? SAMPLE.blkLot : (profile?.address ?? "Address not set")}</p>
                 <div className="mt-3 flex flex-wrap justify-center gap-2">
-                  <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[10px] font-medium text-primary"><ShieldCheck className="h-3 w-3" /> Verified</span>
-                  <span className="rounded-full bg-muted px-3 py-1 text-[10px] text-muted-foreground">{SAMPLE.memberSince}</span>
+                  <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[10px] font-medium text-primary"><ShieldCheck className="h-3 w-3" /> {user?.account_status === "approved" ? "HOA approved" : "Pending approval"}</span>
+                  {demoMode && <span className="rounded-full bg-muted px-3 py-1 text-[10px] text-muted-foreground">{SAMPLE.memberSince}</span>}
                 </div>
-                <div className="mt-5 grid grid-cols-3 gap-2 border-t border-border pt-5">
-                  <Stat value={SAMPLE.complaints} label="Complaints" />
-                  <Stat value={SAMPLE.services} label="Services" />
-                  <Stat value={SAMPLE.tenure} label="Tenure" />
-                </div>
-                <p className="mt-3 text-[9px] text-muted-foreground">Counts shown are sample placeholders.</p>
+                {demoMode ? <>
+                  <div className="mt-5 grid grid-cols-3 gap-2 border-t border-border pt-5">
+                    <Stat value={SAMPLE.complaints} label="Complaints" />
+                    <Stat value={SAMPLE.services} label="Services" />
+                    <Stat value={SAMPLE.tenure} label="Tenure" />
+                  </div>
+                  <p className="mt-3 text-[9px] text-muted-foreground">Counts shown are demo placeholders.</p>
+                </> : <p className="mt-4 border-t border-border pt-4 text-xs text-muted-foreground">Account activity summaries will appear here when available.</p>}
               </section>
 
               <section className="rounded-lg border border-border bg-card p-5">
                 <h2 className="flex items-center gap-2 font-display font-semibold"><Hash className="h-4 w-4 text-primary" /> Tank Information</h2>
                 <p className="mt-1 text-xs text-muted-foreground">Linked IoT device &amp; registry</p>
-                <div className="mt-4 space-y-2">
+                {demoMode ? <div className="mt-4 space-y-2">
                   <div className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-3">
                     <div>
                       <p className="text-[9px] uppercase text-muted-foreground">Tank ID</p>
@@ -131,7 +146,7 @@ export default function Profile() {
                     <Tile label="Sensor" value={SAMPLE.tank.sensor} />
                     <Tile label="Status" value="Online" dot />
                   </div>
-                </div>
+                </div> : <div className="mt-4 rounded-md border border-dashed border-border bg-muted/20 p-6 text-center"><p className="text-sm font-medium">{tank?.device_id ?? "No tank linked yet"}</p><p className="mt-1 text-xs text-muted-foreground">Tank capacity, installation, and sensor status will appear after the HOA links a septic system.</p></div>}
               </section>
             </div>
 
@@ -147,40 +162,40 @@ export default function Profile() {
                 <div className="mt-5 grid gap-4 md:grid-cols-2">
                   <ReadField icon={UserRound} label="Full Name" value={name} />
                   <ReadField icon={Mail} label="Email Address" value={user?.email ?? "—"} />
-                  <ReadField icon={Phone} label="Phone Number" value={SAMPLE.phone} />
-                  <ReadField icon={AtSign} label="Resident ID" value={SAMPLE.residentId} />
+                  <ReadField icon={Phone} label="Phone Number" value={demoMode ? SAMPLE.phone : (profile?.contact_number ?? user?.contact_number ?? "—")} />
+                  <ReadField icon={AtSign} label="Resident ID" value={demoMode ? SAMPLE.residentId : user?.id ? `RES-${String(user.id).padStart(4, "0")}` : "—"} />
                 </div>
-                <button onClick={() => soon("Information change requests")} className="mt-3 flex items-center gap-2 text-xs font-medium text-primary"><Mail className="h-3.5 w-3.5" /> Request information change →</button>
+                <button onClick={() => setInfoChangePanelOpen(true)} className="mt-3 flex items-center gap-2 text-xs font-medium text-primary"><Mail className="h-3.5 w-3.5" /> Request information change →</button>
               </section>
 
               <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
                 <h2 className="flex items-center gap-2 font-display font-semibold"><MapPin className="h-4 w-4 text-primary" /> Address Information</h2>
                 <p className="mt-1 text-xs text-muted-foreground">Property location within the community</p>
-                <div className="mt-5 grid gap-4 md:grid-cols-2">
+                {demoMode ? <div className="mt-5 grid gap-4 md:grid-cols-2">
                   <EditField label="Street Address" value={address.street} onChange={(v) => setAddress({ ...address, street: v })} />
                   <EditField label="Phase" value={address.phase} onChange={(v) => setAddress({ ...address, phase: v })} />
                   <EditField label="Subdivision" value={address.subdivision} onChange={(v) => setAddress({ ...address, subdivision: v })} />
                   <EditField label="City" value={address.city} onChange={(v) => setAddress({ ...address, city: v })} />
                   <EditField label="ZIP Code" value={address.zip} onChange={(v) => setAddress({ ...address, zip: v })} />
-                </div>
+                </div> : <div className="mt-5 rounded-md border border-border bg-muted/30 p-4"><p className="text-xs text-muted-foreground">Registered address</p><p className="mt-1 text-sm font-medium">{profile?.address ?? user?.address ?? "No address saved"}</p></div>}
               </section>
 
               <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
                 <h2 className="flex items-center gap-2 font-display font-semibold"><Bell className="h-4 w-4 text-primary" /> Preferences</h2>
                 <p className="mt-1 text-xs text-muted-foreground">Customize how you receive updates from the portal</p>
-                <div className="mt-4 space-y-2">
+                {demoMode ? <div className="mt-4 space-y-2">
                   <Toggle icon={Bell} title="Push Notifications" detail="Alerts about tank levels and complaints" checked={prefs.push} onChange={(v) => setPrefs({ ...prefs, push: v })} />
                   <Toggle icon={Mail} title="Email Digest" detail="Weekly summary every Monday" checked={prefs.email} onChange={(v) => setPrefs({ ...prefs, email: v })} />
                   <Toggle icon={MessageSquare} title="SMS Alerts" detail="Critical notifications only" checked={prefs.sms} onChange={(v) => setPrefs({ ...prefs, sms: v })} />
-                </div>
+                </div> : <p className="mt-4 rounded-md border border-dashed border-border p-4 text-xs text-muted-foreground">Notification preferences will appear here when available.</p>}
               </section>
 
               <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
                 <h2 className="flex items-center gap-2 font-display font-semibold"><ShieldCheck className="h-4 w-4 text-primary" /> Security &amp; Account</h2>
                 <p className="mt-1 text-xs text-muted-foreground">Protect your account and manage your session</p>
                 <div className="mt-4 space-y-2">
-                  <Row icon={KeyRound} title="Password" detail={SAMPLE.passwordChanged}
-                    action={<button onClick={() => soon("Password change")} className="rounded-md bg-secondary px-3 py-2 text-xs font-medium text-secondary-foreground">Change Password</button>} />
+                  <Row icon={KeyRound} title="Password" detail={demoMode ? SAMPLE.passwordChanged : "Password change history unavailable"}
+                    action={<button onClick={() => setPasswordPanelOpen(true)} className="rounded-md bg-secondary px-3 py-2 text-xs font-medium text-secondary-foreground">Change Password</button>} />
                   <Row icon={ShieldQuestion} title="Two-Factor Authentication" detail="Not enabled yet"
                     action={<span className="rounded-full bg-muted px-3 py-1 text-[10px] text-muted-foreground">Not enabled yet</span>} />
                   <Row danger icon={LogOut} title="Sign out" detail="End your session on this device"
@@ -191,6 +206,16 @@ export default function Profile() {
           </div>
         </main>
       </div>
+      <ChangePasswordPanel open={passwordPanelOpen} onClose={() => setPasswordPanelOpen(false)} />
+      <RequestInfoChangePanel
+        open={infoChangePanelOpen}
+        onClose={() => setInfoChangePanelOpen(false)}
+        current={{
+          name,
+          email: user?.email ?? "",
+          phone: demoMode ? SAMPLE.phone : (profile?.contact_number ?? user?.contact_number ?? ""),
+        }}
+      />
     </div>
   );
 }

@@ -2,11 +2,12 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Activity, Bell, Bot, Copy, FileWarning, Filter, Home, Lightbulb,
-  LogOut, Menu, Plus, Search, Settings, ShieldCheck, TriangleAlert,
+  LogOut, Menu, Plus, Search, ShieldCheck, TriangleAlert,
   Trash2, UserRound, Volume2, Waves, Wrench, ChevronLeft, ChevronRight,
   Clock, Sparkles, CircleCheck,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
+import ResidentComplaintPanel from "../components/ResidentComplaintPanel.jsx";
 
 /* ==================================================================
    SeptiGuard — My Complaints (Resident)
@@ -97,6 +98,7 @@ const SAMPLE_COMPLAINTS = [
     assigned_to: null,
   },
 ];
+const EMPTY_COMPLAINTS = [];
 
 const NAV = [
   { icon: Home,        label: "Dashboard", path: "/dashboard" },
@@ -114,7 +116,9 @@ export default function Complaints() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const [complaints] = useState(SAMPLE_COMPLAINTS);
+  const [selectedComplaint, setSelectedComplaint] = useState(null);
+  const [complaintPanelOpen, setComplaintPanelOpen] = useState(false);
+  const complaints = user?.demo_mode ? SAMPLE_COMPLAINTS : EMPTY_COMPLAINTS;
   const [tab, setTab] = useState("all");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -206,10 +210,10 @@ export default function Complaints() {
           </div>
           <button
             onClick={() => navigate("/complaints/new")}
-            className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+            className="flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground sm:gap-2 sm:px-4 sm:text-sm"
           >
             <Plus className="h-4 w-4" />
-            New Complaint
+            <span className="whitespace-nowrap">New Complaint</span>
           </button>
         </header>
 
@@ -268,8 +272,20 @@ export default function Complaints() {
           {/* ---------------- COMPLAINT LIST ---------------- */}
           <div className="space-y-3">
             {paged.length === 0 && (
-              <div className="rounded-lg border border-border bg-card p-8 text-center text-sm text-muted-foreground">
-                No complaints found.
+              <div className="rounded-lg border border-border bg-card p-8 text-center">
+                <p className="text-sm text-muted-foreground">
+                  {complaints.length === 0 ? "You have not submitted any complaints yet." : "No complaints match your current filters."}
+                </p>
+                {complaints.length === 0 && (
+                  <button
+                    type="button"
+                    onClick={() => navigate("/complaints/new")}
+                    className="mt-4 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Submit a complaint
+                  </button>
+                )}
               </div>
             )}
 
@@ -279,7 +295,7 @@ export default function Complaints() {
               return (
                 <button
                   key={c.ticket_code}
-                  onClick={() => soon(`Complaint ${c.ticket_code} detail`)}
+                  onClick={() => { setSelectedComplaint(c); setComplaintPanelOpen(true); }}
                   className="flex w-full items-start gap-4 rounded-lg border border-border bg-card p-4 text-left transition hover:border-primary/30 sm:p-5"
                 >
                   <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md ${cat.tone}`}>
@@ -335,6 +351,13 @@ export default function Complaints() {
           </div>
         </main>
       </div>
+      <ResidentComplaintPanel
+        complaint={selectedComplaint}
+        open={complaintPanelOpen}
+        onClose={() => setComplaintPanelOpen(false)}
+        categoryMeta={CATEGORY_META}
+        statusMeta={STATUS_META}
+      />
     </div>
   );
 }

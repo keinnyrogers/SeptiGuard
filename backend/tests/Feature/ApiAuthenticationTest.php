@@ -17,6 +17,7 @@ class ApiAuthenticationTest extends TestCase
             'password' => 'password123',
             'role' => 'resident',
             'account_status' => 'approved',
+            'demo_mode' => false,
         ]);
 
         $response = $this->postJson('/api/login', [
@@ -26,8 +27,34 @@ class ApiAuthenticationTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('user.id', $user->id)
+            ->assertJsonPath('user.demo_mode', false)
             ->assertJsonStructure(['token', 'user']);
         $this->assertNotEmpty($response->json('token'));
+    }
+
+    public function test_demo_account_flag_is_returned_during_login(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'demo-resident@example.com',
+            'password' => 'password123',
+            'role' => 'resident',
+            'account_status' => 'approved',
+            'demo_mode' => true,
+        ]);
+
+        $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password123',
+        ])->assertOk()->assertJsonPath('user.demo_mode', true);
+    }
+
+    public function test_database_seeder_marks_example_resident_as_demo(): void
+    {
+        $this->seed();
+
+        $demoResident = User::query()->where('email', 'resident@example.com')->firstOrFail();
+
+        $this->assertTrue($demoResident->demo_mode);
     }
 
     public function test_pending_user_cannot_log_in_through_the_api(): void
@@ -58,6 +85,7 @@ class ApiAuthenticationTest extends TestCase
         ]);
 
         $response->assertCreated();
+        $response->assertJsonPath('user.demo_mode', false);
         $this->assertDatabaseHas('users', [
             'email' => 'new-resident@example.com',
             'account_status' => 'pending',
