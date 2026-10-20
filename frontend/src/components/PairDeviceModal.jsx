@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, Cpu, X } from "lucide-react";
+import { pairResidentDevice } from "../api.js";
 
-export default function PairDeviceModal({ open, onClose }) {
+export default function PairDeviceModal({ open, onClose, token, onPaired }) {
   const [deviceId, setDeviceId] = useState("");
+  const [tankHeightCm, setTankHeightCm] = useState("");
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState("");
 
@@ -17,21 +19,34 @@ export default function PairDeviceModal({ open, onClose }) {
 
   const close = () => {
     setDeviceId("");
+    setTankHeightCm("");
     setStatus("idle");
     setError("");
     onClose();
   };
 
-  const submit = () => {
+  const submit = async () => {
     const normalizedId = deviceId.trim();
+    const normalizedHeight = Number(tankHeightCm);
     if (!normalizedId) {
       setError("Enter the Device ID printed on your sensor.");
+      return;
+    }
+    if (!Number.isFinite(normalizedHeight) || normalizedHeight < 25 || normalizedHeight > 1000) {
+      setError("Enter a tank height between 25 and 1,000 cm.");
       return;
     }
 
     setError("");
     setStatus("sending");
-    setTimeout(() => setStatus("sent"), 700);
+    try {
+      await pairResidentDevice(token, normalizedId, normalizedHeight);
+      setStatus("sent");
+      onPaired?.();
+    } catch (submitError) {
+      setStatus("idle");
+      setError(submitError.message);
+    }
   };
 
   if (!open) return null;
@@ -51,12 +66,12 @@ export default function PairDeviceModal({ open, onClose }) {
               <Cpu className="h-4 w-4" /> Device pairing
             </div>
             <h2 id="pair-device-title" className="mt-2 font-display text-lg font-semibold">
-              {status === "sent" ? "Pairing request received" : "Pair a sensor device"}
+              {status === "sent" ? "Device paired" : "Pair a sensor device"}
             </h2>
             <p className="mt-1 text-xs text-muted-foreground">
               {status === "sent"
-                ? "The device will appear here after pairing is connected to the backend."
-                : "Enter the Device ID printed on the sensor or its packaging."}
+                ? "The registered device is now linked to your resident account."
+                : "Enter the Device ID and the measured tank height."}
             </p>
           </div>
           <button type="button" onClick={close} aria-label="Close" className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
@@ -69,7 +84,7 @@ export default function PairDeviceModal({ open, onClose }) {
             <div className="flex flex-col items-center gap-3 rounded-md border border-success/30 bg-success/10 p-6 text-center">
               <CheckCircle2 className="h-10 w-10 text-success" />
               <p className="text-sm font-semibold">Device ID: {deviceId.trim()}</p>
-              <p className="text-xs text-muted-foreground">Demo flow only — no device was linked yet.</p>
+              <p className="text-xs text-muted-foreground">This device is now linked to your resident account.</p>
             </div>
           ) : (
             <>
@@ -83,9 +98,22 @@ export default function PairDeviceModal({ open, onClose }) {
                 autoFocus
                 className="mt-2 h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary/60"
               />
+              <label htmlFor="tank-height" className="mt-4 block text-xs font-medium">Tank height (cm)</label>
+              <input
+                id="tank-height"
+                type="number"
+                min="25"
+                max="1000"
+                step="0.1"
+                value={tankHeightCm}
+                onChange={(event) => setTankHeightCm(event.target.value)}
+                onKeyDown={(event) => event.key === "Enter" && submit()}
+                placeholder="e.g. 200"
+                className="mt-2 h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary/60"
+              />
               {error && <p className="mt-2 text-xs text-danger">{error}</p>}
               <p className="mt-3 text-[11px] text-muted-foreground">
-                Pairing validation will be connected when the device registry API is available.
+                Measure from the sensor position to the empty tank bottom. After pairing, this height is sent to the ESP32 over MQTT and used to calculate fill percentage. Leave other tank details with the HOA if you’re unsure.
               </p>
             </>
           )}
@@ -97,7 +125,7 @@ export default function PairDeviceModal({ open, onClose }) {
           ) : (
             <>
               <button type="button" onClick={close} className="h-10 flex-1 rounded-md border border-border text-sm">Cancel</button>
-              <button type="button" onClick={submit} disabled={status === "sending"} className="h-10 flex-1 rounded-md bg-primary text-sm font-medium text-primary-foreground disabled:opacity-60">
+              <button type="button" onClick={submit} disabled={status === "sending" || !token} className="h-10 flex-1 rounded-md bg-primary text-sm font-medium text-primary-foreground disabled:opacity-60">
                 {status === "sending" ? "Checking..." : "Pair device"}
               </button>
             </>

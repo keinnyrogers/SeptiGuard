@@ -6,7 +6,9 @@ import {
   Upload, User, UserRound, Wrench, X,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
+import { createResidentComplaint } from "../api.js";
 import ThemedSelect from "../components/ThemedSelect.jsx";
+import ResidentAvatar from "../components/ResidentAvatar.jsx";
 
 /* ==================================================================
    SeptiGuard — File New Complaint (Resident)
@@ -14,7 +16,6 @@ import ThemedSelect from "../components/ThemedSelect.jsx";
    Fields dito ay tugma sa `complaints` table mo:
 
      category      -> Complaint Type (matches the 7-value enum)
-     priority      -> Priority Level (low / medium / high)
      title         -> Subject
      description   -> Description
      location      -> Location / Address
@@ -41,63 +42,70 @@ const CATEGORY_OPTIONS = [
   { value: "other",         label: "Other" },
 ];
 
-const PRIORITY_OPTIONS = [
-  { value: "low",    label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high",   label: "High" },
-];
-
 const NAV = [
   { icon: Home,        label: "Dashboard", path: "/dashboard" },
   { icon: Activity,    label: "Monitoring", path: "/monitor" },
   { icon: Bot,         label: "Predict", path: "/predict" },
   { icon: FileWarning, label: "Complaints", path: "/complaints", active: true },
-  { icon: Wrench,      label: "Maintain", path: "/maintain" },
+  { icon: Wrench,      label: "Maintenance", path: "/maintain" },
   { icon: Bell,        label: "Alerts", path: "/alerts" },
   { icon: UserRound,   label: "Profile", path: "/profile" },
 ];
 
-const DRAFT_KEY = "septiguard_complaint_draft";
+const DRAFT_KEY_PREFIX = "septiguard_complaint_draft";
 
 export default function NewComplaint() {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const navigate = useNavigate();
+  const registeredAddress = user?.resident_profile?.address ?? user?.residentProfile?.address ?? user?.address ?? "";
+  const draftKey = `${DRAFT_KEY_PREFIX}:${user?.id ?? user?.email ?? "anonymous"}`;
+  const [savedDraft] = useState(() => {
+    try {
+      const raw = localStorage.getItem(draftKey);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      try {
+        localStorage.removeItem(draftKey);
+      } catch {
+        return { invalid: true };
+      }
+      return { invalid: true };
+    }
+  });
   const [open, setOpen] = useState(false);
 
-  const [category, setCategory] = useState("");
-  const [priority, setPriority] = useState("");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [location, setLocation] = useState("");
+  const [category, setCategory] = useState(() => savedDraft?.category ?? "");
+  const [title, setTitle] = useState(() => savedDraft?.title ?? "");
+  const [description, setDescription] = useState(() => savedDraft?.description ?? "");
+  const [location, setLocation] = useState(() => savedDraft?.location ?? registeredAddress);
   const [photo, setPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useState(() => savedDraft?.invalid
+    ? { draft: "Your saved draft could not be read and has been cleared." }
+    : {});
   const [submitting, setSubmitting] = useState(false);
-  const [draftSavedAt, setDraftSavedAt] = useState(null);
+  const [draftSavedAt, setDraftSavedAt] = useState(() => savedDraft?.savedAt ?? null);
 
-  const first = user?.name?.split(" ")[0] ?? "Resident";
   const soon = (name) => window.alert(`${name} will be connected in the next step.`);
   const signOut = async () => { await logout(); navigate("/"); };
 
-  /* ----- load a saved draft, if may naiwan galing sa localStorage ----- */
-  useEffect(() => {
-    const raw = localStorage.getItem(DRAFT_KEY);
-    if (raw) {
-      const draft = JSON.parse(raw);
-      setCategory(draft.category ?? "");
-      setPriority(draft.priority ?? "");
-      setTitle(draft.title ?? "");
-      setDescription(draft.description ?? "");
-      setLocation(draft.location ?? "");
-      setDraftSavedAt(draft.savedAt ?? null);
-    }
-  }, []);
+  useEffect(() => () => {
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+  }, [photoPreview]);
 
   const handlePhotoChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      setErrors((p) => ({ ...p, photo: "File must be under 10MB." }));
+    if (file.size > 10 * 1024 * 1024 || !["image/png", "image/jpeg"].includes(file.type)) {
+      setPhoto(null);
+      setPhotoPreview(null);
+      e.target.value = "";
+      setErrors((p) => ({
+        ...p,
+        photo: file.size > 10 * 1024 * 1024
+          ? "File must be under 10MB."
+          : "Choose a PNG or JPG image.",
+      }));
       return;
     }
     setErrors((p) => ({ ...p, photo: undefined }));
@@ -108,14 +116,23 @@ export default function NewComplaint() {
   const removePhoto = () => {
     setPhoto(null);
     setPhotoPreview(null);
+    setErrors((previous) => ({ ...previous, photo: undefined }));
   };
 
   const saveDraft = () => {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({
-      category, priority, title, description, location,
-      savedAt: new Date().toLocaleTimeString(),
-    }));
-    setDraftSavedAt(new Date().toLocaleTimeString());
+    const savedAt = new Date().toLocaleTimeString();
+    try {
+      localStorage.setItem(draftKey, JSON.stringify({
+        category, title, description, location, savedAt,
+      }));
+      setDraftSavedAt(savedAt);
+      setErrors((previous) => ({ ...previous, draft: undefined }));
+    } catch {
+      setErrors((previous) => ({
+        ...previous,
+        draft: "Could not save this draft in your browser.",
+      }));
+    }
   };
 
   const validate = () => {
@@ -136,7 +153,6 @@ export default function NewComplaint() {
     const token = localStorage.getItem("token");
     const formData = new FormData();
     formData.append("category", category);
-    formData.append("priority", priority || "medium");
     formData.append("title", title);
     formData.append("description", description);
     formData.append("location", location);
@@ -158,13 +174,22 @@ export default function NewComplaint() {
     }
     ------------------------------------------------------------------------ */
 
-    // fake delay lang muna habang wala pang backend endpoint
-    setTimeout(() => {
-      setSubmitting(false);
-      window.alert("Complaint submitted! (sample — not yet connected to backend)");
-      localStorage.removeItem(DRAFT_KEY);
+    const formData = new FormData();
+    formData.append("category", category);
+    formData.append("title", title);
+    formData.append("description", description);
+    formData.append("location", location);
+    if (photo) formData.append("photo", photo);
+
+    try {
+      await createResidentComplaint(token, formData);
+      localStorage.removeItem(draftKey);
       navigate("/complaints");
-    }, 700);
+    } catch (error) {
+      setErrors((previous) => ({ ...previous, submit: error.message }));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -193,9 +218,7 @@ export default function NewComplaint() {
           ))}
         </nav>
         <div className="flex flex-col items-center gap-2 border-t border-border pt-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-primary text-[10px] font-semibold">
-            {first.slice(0, 2).toUpperCase()}
-          </div>
+          <ResidentAvatar />
           <button onClick={signOut} title="Sign out" className="p-2 text-muted-foreground hover:text-danger">
             <LogOut className="h-4 w-4" />
           </button>
@@ -246,6 +269,11 @@ export default function NewComplaint() {
               </p>
 
               <div className="mt-5 space-y-5">
+                {(errors.submit || errors.draft) && (
+                  <p role="alert" className="rounded-md border border-danger/30 bg-danger/10 p-3 text-xs text-danger">
+                    {errors.submit || errors.draft}
+                  </p>
+                )}
                 {/* Complaint Type */}
                 <Field label="Complaint Type" required error={errors.category}>
                   <SelectBox
@@ -253,16 +281,6 @@ export default function NewComplaint() {
                     onChange={setCategory}
                     placeholder="Select complaint category"
                     options={CATEGORY_OPTIONS}
-                  />
-                </Field>
-
-                {/* Priority */}
-                <Field label="Priority Level">
-                  <SelectBox
-                    value={priority}
-                    onChange={setPriority}
-                    placeholder="Choose priority"
-                    options={PRIORITY_OPTIONS}
                   />
                 </Field>
 
@@ -383,9 +401,7 @@ export default function NewComplaint() {
                 </p>
 
                 <div className="mt-4 flex items-center gap-3 rounded-md border border-border bg-muted/40 p-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-primary text-[10px] font-semibold">
-                    {first.slice(0, 2).toUpperCase()}
-                  </div>
+                  <ResidentAvatar className="h-9 w-9 shrink-0" />
                   <div className="min-w-0">
                     <p className="truncate text-xs font-semibold">{user?.name ?? "Resident"}</p>
                     <p className="truncate text-[10px] text-muted-foreground">

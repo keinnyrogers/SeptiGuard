@@ -73,6 +73,22 @@ class ApiAuthenticationTest extends TestCase
         $response->assertForbidden();
     }
 
+    public function test_inactive_user_receives_deactivation_message(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'inactive@example.com',
+            'password' => 'password123',
+            'account_status' => 'inactive',
+        ]);
+
+        $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password123',
+        ])->assertForbidden()
+            ->assertJsonPath('status', 'inactive')
+            ->assertJsonPath('message', 'This account has been deactivated by the HOA administrator. Please contact the HOA for assistance.');
+    }
+
     public function test_api_registration_creates_pending_user(): void
     {
         $response = $this->postJson('/api/register', [

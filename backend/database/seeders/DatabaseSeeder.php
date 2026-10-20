@@ -36,7 +36,9 @@ class DatabaseSeeder extends Seeder
 
         $septicSystem = SepticSystem::create([
             'user_id' => $resident->id,
-            'device_id' => 'ESP32-DEMO-001',
+            'device_id' => 'TNK-001',
+            // Wokwi's ultrasonic distance control ranges from 0 to 400 cm.
+            'tank_height_cm' => 400,
             'tank_type' => 'Concrete',
             'capacity_liters' => 5000,
             'installation_date' => '2022-06-15',
@@ -53,5 +55,29 @@ class DatabaseSeeder extends Seeder
             'status' => 'normal',
             'distance_cm' => 84.50,
         ]);
+
+        SepticSystem::firstOrCreate(
+            ['device_id' => 'TNK-002'],
+            [
+                'user_id' => null,
+                // Wokwi's ultrasonic distance control ranges from 0 to 400 cm.
+                'tank_height_cm' => 400,
+                'tank_type' => 'Concrete',
+                'capacity_liters' => 5000,
+                'location' => 'Unassigned device registry',
+            ],
+        );
+
+        SepticSystem::firstOrCreate(
+            ['device_id' => 'TNK-003'],
+            [
+                'user_id' => null,
+                // Temporary test-device calibration until the physical tank is measured.
+                'tank_height_cm' => 400,
+                'tank_type' => 'Concrete',
+                'capacity_liters' => 5000,
+                'location' => 'Unassigned device registry',
+            ],
+        );
     }
 }

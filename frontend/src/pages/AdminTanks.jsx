@@ -1,10 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, ChevronDown, Clock, LayoutGrid, List, MapPin, Menu, Search } from "lucide-react";
+import { ChevronDown, Clock, LayoutGrid, List, MapPin, Menu, Search } from "lucide-react";
 import { AdminSidebar } from "@/components/AdminSidebar";
+import AdminNotificationPopover from "@/components/AdminNotificationPopover";
 import TankPanel from "@/components/TankPanel";
 import DispatchModal from "@/components/DispatchModal";
 import { useAuth } from "../context/AuthContext.jsx";
+import { dispatchAdminDesludging, fetchAdminTanks, recordAdminDesludging } from "../api.js";
 
 // ---------- Status threshold rules (single source of truth) ----------
 // fillLevel >= 80%        -> "critical" (red)
@@ -22,32 +24,10 @@ const STATUS_META = {
   normal: { label: "Normal", text: "text-success", bg: "bg-success/15", border: "border-success", ring: "text-success" },
 };
 
-// ---------- Sample data (replace with GET /api/admin/tanks) ----------
-const FIRST_NAMES = ["Christofe", "Kein", "Niel", "Jessa", "Jhanna", "Maria", "Lorenzo", "Pia", "Ramon", "Sofia", "Andres", "Lina", "Bert", "Cora", "Dante", "Eve"];
-const LAST_INITIAL = ["O", "T", "P", "A", "P", "R", "M", "S", "A", "L", "B", "C", "D", "E", "F", "G"];
-// 3 critical + 11 warning + 34 normal = 48
-const LEVELS = [
-  96, 92, 87,
-  78, 77, 75, 74, 73, 72, 72, 71, 71, 70, 70,
-  ...[68, 65, 63, 61, 58, 55, 52, 49, 47, 45, 43, 41, 38, 36, 33, 31, 28, 26, 24, 22, 20, 18, 15, 12, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1].slice(0, 34),
-];
-
-const TANKS = LEVELS.map((level, i) => ({
-  // Single identifier: septic_systems.device_id
-  id: `TNK-${String(i + 1).padStart(3, "0")}`,
-  resident: `${FIRST_NAMES[i % FIRST_NAMES.length]} ${LAST_INITIAL[i % LAST_INITIAL.length]}.`,
-  block: (i % 15) + 1,
-  lot: ((i * 3) % 28) + 1,
-  level,
-  status: statusOf(level),
-  daysUntilFull: Math.max(1, Math.round((100 - level) * 0.6)),
-  installed: "Jan 15, 2023",
-}));
-
 const PER_PAGE = 8;
 
 export default function AdminTanks() {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -57,17 +37,42 @@ export default function AdminTanks() {
   const [selectedTank, setSelectedTank] = useState(null);
   const [dispatchTank, setDispatchTank] = useState(null);
   const [viewMode, setViewMode] = useState("grid");
-  const soon = (name) => window.alert(`${name} will be connected in the next step.`);
+  const [tanks, setTanks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [refreshError, setRefreshError] = useState("");
+
+  useEffect(() => {
+    let current = true;
+    fetchAdminTanks(token)
+      .then((data) => {
+        if (current) {
+          setTanks((data.tanks ?? []).map((tank) => ({
+            ...tank,
+            status: tank.status ?? (tank.level === null ? "normal" : statusOf(tank.level)),
+          })));
+        }
+      })
+      .catch((error) => {
+        if (current) setLoadError(error.message);
+      })
+      .finally(() => {
+        if (current) setLoading(false);
+      });
+    return () => {
+      current = false;
+    };
+  }, [token]);
 
   const counts = useMemo(() => {
-    const c = { total: TANKS.length, normal: 0, warning: 0, critical: 0 };
-    for (const t of TANKS) c[t.status]++;
+    const c = { total: tanks.length, normal: 0, warning: 0, critical: 0 };
+    for (const t of tanks) c[t.status ?? "normal"]++;
     return c;
-  }, []);
+  }, [tanks]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return TANKS.filter((t) => {
+    return tanks.filter((t) => {
       if (statusFilter !== "all" && t.status !== statusFilter) return false;
       if (blockFilter !== "all" && t.block !== Number(blockFilter)) return false;
       if (q) {
@@ -76,12 +81,34 @@ export default function AdminTanks() {
       }
       return true;
     });
-  }, [query, statusFilter, blockFilter]);
+  }, [tanks, query, statusFilter, blockFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const safePage = Math.min(page, totalPages);
   const pageItems = filtered.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE);
-  const blocks = useMemo(() => [...new Set(TANKS.map((t) => t.block))].sort((a, b) => a - b), []);
+  const blocks = useMemo(() => [...new Set(tanks.map((t) => t.block).filter(Boolean))].sort((a, b) => a - b), [tanks]);
+
+  async function handleRecordDesludging(performedOn) {
+    if (!selectedTank) return;
+    const event = await recordAdminDesludging(token, selectedTank.system_id, performedOn);
+    const updatedTank = { ...selectedTank, lastDesludged: event.performed_on };
+    setSelectedTank(updatedTank);
+    setTanks((current) => current.map((tank) => (
+      tank.system_id === updatedTank.system_id ? updatedTank : tank
+    )));
+    try {
+      const data = await fetchAdminTanks(token);
+      const refreshedTanks = (data.tanks ?? []).map((tank) => ({
+        ...tank,
+        status: tank.status ?? (tank.level === null ? "normal" : statusOf(tank.level)),
+      }));
+      setTanks(refreshedTanks);
+      setSelectedTank(refreshedTanks.find((tank) => tank.id === selectedTank.id) ?? updatedTank);
+      setRefreshError("");
+    } catch (error) {
+      setRefreshError(`Desludging was recorded, but updated tank data could not be loaded: ${error.message}`);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground lg:flex">
@@ -112,17 +139,19 @@ export default function AdminTanks() {
               <h1 className="mt-1 font-display text-xl font-bold">All Septic Tanks</h1>
             </div>
           </div>
-          <button onClick={() => soon("Notifications")} className="relative rounded-full bg-muted p-2" aria-label="Notifications">
-            <Bell className="h-4 w-4" />
-            <b className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[8px]">5</b>
-          </button>
+          <AdminNotificationPopover token={token} navigate={navigate} onViewAll={() => navigate("/admin/residents")} />
         </header>
 
         <main className="mx-auto max-w-[1440px] space-y-5 p-4 sm:p-7">
+          {refreshError && (
+            <p role="alert" className="rounded-md border border-danger/40 bg-danger/10 px-4 py-3 text-xs text-danger">
+              {refreshError}
+            </p>
+          )}
           <section className="relative flex flex-col gap-4 rounded-lg border border-primary/20 bg-primary/25 p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="mb-2 flex items-center gap-2 text-[10px] text-primary">
-                <span className="rounded border border-primary/40 px-2 py-0.5 font-semibold uppercase">Sample data</span>
+                <span className="rounded border border-primary/40 px-2 py-0.5 font-semibold uppercase">Live data</span>
                 <span>Status computed from fill level</span>
               </div>
               <h2 className="font-display text-lg font-bold">Community Septic Tanks</h2>
@@ -232,10 +261,18 @@ export default function AdminTanks() {
           </div>
 
           {/* Tank grid */}
-          {pageItems.length === 0 ? (
+          {loading ? (
+            <div className="rounded-lg border border-dashed border-border bg-card p-10 text-center">
+              <p className="text-sm font-medium">Loading tank data...</p>
+            </div>
+          ) : loadError ? (
+            <div className="rounded-lg border border-danger/40 bg-danger/10 p-10 text-center">
+              <p className="text-sm font-medium text-danger">{loadError}</p>
+            </div>
+          ) : pageItems.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border bg-card p-10 text-center">
               <p className="text-sm font-medium">No tanks match these filters</p>
-              <p className="mt-1 text-xs text-muted-foreground">Try another search or reset the selected filters.</p>
+              <p className="mt-1 text-xs text-muted-foreground">{tanks.length === 0 ? "No septic tanks have been registered yet." : "Try another search or reset the selected filters."}</p>
               <button type="button" onClick={() => { setQuery(""); setStatusFilter("all"); setBlockFilter("all"); setPage(1); }} className="mt-4 rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-muted">
                 Clear filters
               </button>
@@ -284,12 +321,13 @@ export default function AdminTanks() {
                 soon(label);
                 setSelectedTank(null);
               }}
+              onRecordDesludging={handleRecordDesludging}
             />
           )}
           <DispatchModal
             tank={dispatchTank}
             onClose={() => setDispatchTank(null)}
-            onConfirm={({ tankId, contractor, date }) => window.alert(`Demo: ${tankId} desludging scheduled with ${contractor} for ${date}.`)}
+            onConfirm={({ tankId, scheduledFor }) => dispatchAdminDesludging(token, tankId, scheduledFor)}
           />
 
           {/* Pagination */}
@@ -406,7 +444,7 @@ function TankCard({ tank, onView, onSchedule }) {
         </p>
         <p className="text-[10px] text-muted-foreground">{tank.resident}</p>
       </div>
-      <div className="relative mx-auto my-3 h-24 w-24">
+      <div className="relative mx-auto my-3 h-28 w-28">
         <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
           <circle cx="60" cy="60" r="42" fill="none" stroke="currentColor" strokeWidth="12" className="text-muted" />
           <circle
@@ -422,14 +460,18 @@ function TankCard({ tank, onView, onSchedule }) {
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <b className="font-display text-xl">{tank.level}%</b>
+          <b className="whitespace-nowrap font-display text-base leading-none tracking-tight tabular-nums">{tank.level}%</b>
           <span className="text-[8px] text-muted-foreground">FILL</span>
         </div>
       </div>
       <div className={`flex items-center justify-center gap-1.5 rounded-md bg-muted/60 px-2 py-2 text-[10px] ${meta.text}`}>
         <Clock className="h-3.5 w-3.5" />
-        <span className="text-muted-foreground">Until full:</span>
-        <b>{tank.daysUntilFull} days</b>
+        <span className="text-muted-foreground">Est. to 80%:</span>
+        <b>{tank.forecast_status === "threshold_reached"
+          ? "Reached"
+          : tank.forecast_status === "ready" && Number.isInteger(tank.days_to_critical)
+            ? `${tank.days_to_critical} days`
+            : "Unavailable"}</b>
       </div>
       <div className="mt-3 flex items-center gap-2">
         <button

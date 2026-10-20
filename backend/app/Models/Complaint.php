@@ -11,7 +11,6 @@ class Complaint extends Model
         'ticket_code',
         'title',
         'category',
-        'priority',
         'description',
         'location',
         'photo_path',
@@ -19,10 +18,12 @@ class Complaint extends Model
         'hoa_response',
         'assigned_to',
         'resolved_at',
+        'scheduled_for',
     ];
 
     protected $casts = [
         'resolved_at' => 'datetime',
+        'scheduled_for' => 'date',
     ];
 
     // Auto generate ticket code

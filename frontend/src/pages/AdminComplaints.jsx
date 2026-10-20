@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNowStrict, isAfter, isBefore, startOfDay, endOfDay } from "date-fns";
 import {
@@ -36,21 +36,9 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "../context/AuthContext.jsx";
 import {
   CATEGORY_LABELS,
-  SAMPLE_DATA,
   STATUS_LABELS,
 } from "@/data/complaints";
-
-const PRIORITY_BORDER = {
-  high: "border-l-danger",
-  medium: "border-l-warning",
-  low: "border-l-success",
-};
-
-const PRIORITY_BADGE = {
-  high: "bg-danger/15 text-danger",
-  medium: "bg-warning/15 text-warning",
-  low: "bg-success/15 text-success",
-};
+import { fetchAdminComplaints, updateAdminComplaint } from "../api.js";
 
 const STATUS_BADGE = {
   pending: "bg-danger/10 text-danger",
@@ -73,18 +61,28 @@ function initials(name) {
 }
 
 export default function AdminComplaints() {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const navigate = useNavigate();
-  const [complaints, setComplaints] = useState(SAMPLE_DATA);
+  const [complaints, setComplaints] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
-  const [priority, setPriority] = useState("all");
   const [range, setRange] = useState();
   const [tab, setTab] = useState("all");
   const [sort, setSort] = useState("newest");
   const [active, setActive] = useState(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    let current = true;
+    fetchAdminComplaints(token)
+      .then((items) => { if (current) setComplaints(items); })
+      .catch((error) => { if (current) setLoadError(error.message); })
+      .finally(() => { if (current) setLoading(false); });
+    return () => { current = false; };
+  }, [token]);
 
   const counts = useMemo(
     () => ({
@@ -101,7 +99,6 @@ export default function AdminComplaints() {
     const list = complaints.filter((c) => {
       if (tab !== "all" && c.status !== tab) return false;
       if (category !== "all" && c.category !== category) return false;
-      if (priority !== "all" && c.priority !== priority) return false;
       const filed = new Date(c.filed_at);
       if (range?.from && isBefore(filed, startOfDay(range.from))) return false;
       if (range?.to && isAfter(filed, endOfDay(range.to))) return false;
@@ -112,34 +109,28 @@ export default function AdminComplaints() {
         .includes(q);
     });
 
-    const weight = { high: 3, medium: 2, low: 1 };
     return [...list].sort((a, b) => {
       if (sort === "oldest")
         return new Date(a.filed_at).getTime() - new Date(b.filed_at).getTime();
-      if (sort === "priority") return weight[b.priority] - weight[a.priority];
       return new Date(b.filed_at).getTime() - new Date(a.filed_at).getTime();
     });
-  }, [complaints, tab, category, priority, range, query, sort]);
+  }, [complaints, tab, category, range, query, sort]);
 
   function openPanel(complaint) {
     setActive(complaint);
     setPanelOpen(true);
   }
 
-  function handleSave(id, values) {
-    setComplaints((prev) =>
-      prev.map((c) =>
-        c.id === id
-          ? {
-              ...c,
-              ...values,
-              resolved_at:
-                values.status === "resolved" ? (c.resolved_at ?? new Date().toISOString()) : null,
-            }
-          : c,
-      ),
-    );
-    setPanelOpen(false);
+  async function handleSave(id, values) {
+    try {
+      const updated = await updateAdminComplaint(token, id, values);
+      setComplaints((prev) => prev.map((complaint) => complaint.id === id ? { ...complaint, ...updated } : complaint));
+      setPanelOpen(false);
+      return true;
+    } catch (error) {
+      setLoadError(error.message);
+      return false;
+    }
   }
 
   const stats = [
@@ -207,6 +198,7 @@ export default function AdminComplaints() {
         </header>
         <div className="px-5 py-6 md:px-8">
 
+        {loadError && <div className="mt-4 rounded-md border border-danger/40 bg-danger/10 p-3 text-xs text-danger">{loadError}</div>}
         <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {stats.map((s) => (
             <div key={s.label} className="rounded-lg border border-border bg-card p-4">
@@ -222,7 +214,7 @@ export default function AdminComplaints() {
           ))}
         </div>
 
-        <div className="mt-6 space-y-4 rounded-lg border border-border bg-card p-4">
+        {loading ? <div className="mt-6 rounded-lg border border-dashed border-border p-10 text-center text-sm">Loading complaints...</div> : <div className="mt-6 space-y-4 rounded-lg border border-border bg-card p-4">
           <div className="flex flex-col gap-3 lg:flex-row">
             <div className="relative flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -251,25 +243,6 @@ export default function AdminComplaints() {
                       {CATEGORY_LABELS[c]}
                     </SelectItem>
                   ))}
-                </SelectContent>
-              </Select>
-
-              <Select
-                value={priority}
-                onValueChange={setPriority}
-              >
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue>
-                    {priority === "all"
-                      ? "Priority"
-                      : priority.charAt(0).toUpperCase() + priority.slice(1)}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All priorities</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -335,31 +308,25 @@ export default function AdminComplaints() {
               <Select value={sort} onValueChange={setSort}>
                 <SelectTrigger className="h-8 w-[150px]">
                   <SelectValue>
-                    {sort === "newest"
-                      ? "Newest first"
-                      : sort === "oldest"
-                        ? "Oldest first"
-                        : "Priority"}
+                      {sort === "newest"
+                        ? "Newest first"
+                        : "Oldest first"}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="newest">Newest first</SelectItem>
                   <SelectItem value="oldest">Oldest first</SelectItem>
-                  <SelectItem value="priority">Priority</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
-        </div>
+          </div>}
 
         <div className="mt-4 space-y-3">
           {visible.map((c) => (
             <article
               key={c.id}
-              className={cn(
-                "rounded-lg border border-border border-l-4 bg-card p-4",
-                PRIORITY_BORDER[c.priority],
-              )}
+              className="rounded-lg border border-border bg-card p-4"
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
@@ -369,14 +336,6 @@ export default function AdminComplaints() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-sm font-semibold">{c.title}</h2>
-                    <span
-                      className={cn(
-                        "rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                        PRIORITY_BADGE[c.priority],
-                      )}
-                    >
-                      {c.priority}
-                    </span>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
                     <span className="font-mono">#{c.ticket_code}</span>
@@ -438,9 +397,9 @@ export default function AdminComplaints() {
           {visible.length === 0 && (
             <div className="rounded-lg border border-dashed border-border p-10 text-center">
               <p className="text-sm font-medium">{complaints.length === 0 ? "No complaints filed" : "No complaints match these filters"}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{complaints.length === 0 ? "New resident reports will appear here." : "Try changing your search, status, category, priority, or date range."}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{complaints.length === 0 ? "New resident reports will appear here." : "Try changing your search, status, category, or date range."}</p>
               {complaints.length > 0 && (
-                <Button type="button" variant="outline" className="mt-4" onClick={() => { setQuery(""); setCategory("all"); setPriority("all"); setRange(undefined); setTab("all"); setSort("newest"); }}>
+                <Button type="button" variant="outline" className="mt-4" onClick={() => { setQuery(""); setCategory("all"); setRange(undefined); setTab("all"); setSort("newest"); }}>
                   Clear filters
                 </Button>
               )}
@@ -451,10 +410,12 @@ export default function AdminComplaints() {
       </main>
 
       <ComplaintPanel
+        key={active ? `${active.id}-${active.status}-${active.hoa_response ?? ""}-${panelOpen}` : "closed"}
         complaint={active}
         open={panelOpen}
         onOpenChange={setPanelOpen}
         onSave={handleSave}
+        token={token}
       />
     </div>
   );

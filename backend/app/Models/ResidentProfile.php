@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
     'user_id',
+    'profile_photo_path',
     'address',
     'contact_number',
     'household_members',

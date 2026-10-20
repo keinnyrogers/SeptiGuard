@@ -44,6 +44,7 @@ Stores resident household and contact information.
 |---|---|---:|---|---|---|
 | `id` | BIGINT UNSIGNED | No | Auto-increment | Primary key | Unique profile identifier. |
 | `user_id` | BIGINT UNSIGNED | No | None | Unique, foreign key to `users.id` | Resident account associated with the profile. |
+| `profile_photo_path` | VARCHAR(255) | Yes | NULL |  | Path to the resident's privately stored profile photo. |
 | `address` | VARCHAR(255) | No | None |  | Resident address. |
 | `contact_number` | VARCHAR(255) | No | None |  | Resident contact number. |
 | `household_members` | INT | No | `1` |  | Number of people in the household. |
@@ -96,7 +97,6 @@ Stores resident complaints and their HOA workflow status. This table was origina
 | `user_id` | BIGINT UNSIGNED | No | None | Foreign key to `users.id` | Resident who submitted the complaint. |
 | `title` | VARCHAR(255) | No | None |  | Short complaint title. |
 | `category` | VARCHAR(255) | No | None |  | Complaint category. |
-| `priority` | VARCHAR(255) | No | `medium` |  | Complaint priority. |
 | `description` | TEXT | No | None |  | Detailed complaint description. |
 | `location` | VARCHAR(255) | Yes | NULL |  | Location related to the complaint. |
 | `photo_path` | VARCHAR(255) | Yes | NULL |  | Stored path of an optional complaint photo. |
@@ -135,9 +135,9 @@ Stores system notifications delivered to users.
 | `title` | VARCHAR(255) | No | None |  | Notification title. |
 | `message` | TEXT | No | None |  | Notification content. |
 | `type` | ENUM | No | None | `critical_alert`, `warning_alert`, `predictive_alert`, `ticket_update`, `announcement` | Notification category. |
-| `channel` | ENUM | No | `fcm` | `fcm`, `email`, `sms` | Delivery channel. |
+| `channel` | ENUM | No | `in_app` | `in_app`, `fcm`, `email`, `sms` | Delivery channel. SMS is retained for legacy records but is no longer supported. |
 | `is_read` | BOOLEAN | No | `false` |  | Indicates whether the user has read the notification. |
-| `is_sent` | BOOLEAN | No | `false` |  | Indicates whether delivery was completed. |
+| `is_sent` | BOOLEAN | No | `false` |  | Indicates whether delivery through the selected channel was completed. |
 | `sent_at` | TIMESTAMP | Yes | NULL |  | Date and time the notification was sent. |
 | `created_at` | TIMESTAMP | Yes | NULL |  | Record creation timestamp. |
 | `updated_at` | TIMESTAMP | Yes | NULL |  | Last record update timestamp. |

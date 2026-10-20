@@ -29,6 +29,14 @@ export function AdminSidebar({
   active = "Complaints",
   soon = (label) => window.alert(`${label} is coming soon`),
 }) {
+  const initials = (user?.name ?? "Admin User")
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "A";
+
   return (
     <aside className={`fixed inset-y-0 left-0 z-40 flex w-52 flex-col border-r border-border bg-card px-3 py-5 transition duration-200 ease-out lg:translate-x-0 lg:opacity-100 ${open ? "translate-x-0 opacity-100" : "-translate-x-full opacity-0 pointer-events-none lg:pointer-events-auto"}`}>
       <div className="mb-5 flex items-center justify-between px-1">
@@ -65,11 +73,11 @@ export function AdminSidebar({
 
       <div className="flex items-center gap-2 border-t border-border pt-4">
         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-[10px] text-primary">
-          AU
+          {initials}
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[11px] font-medium">{user?.name || "Admin User"}</p>
-          <p className="text-[9px] text-muted-foreground">HOA Officer</p>
+          <p className="text-[9px] text-muted-foreground">{user?.role === "hoa_admin" ? "HOA Admin" : "Admin"}</p>
         </div>
         <button onClick={signOut} title="Sign out" className="p-2 text-muted-foreground hover:text-danger">
           <LogOut className="h-4 w-4" />

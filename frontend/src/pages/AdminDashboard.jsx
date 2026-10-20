@@ -1,7 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Bell,
   Boxes,
   ChevronRight,
   CircleAlert,
@@ -13,48 +12,62 @@ import {
 import { AdminSidebar } from "@/components/AdminSidebar";
 import TankPanel from "@/components/TankPanel";
 import DispatchModal from "@/components/DispatchModal";
-import NotificationPopover from "@/components/NotificationPopover";
+import AdminNotificationPopover from "@/components/AdminNotificationPopover";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "../context/AuthContext.jsx";
-
-const SAMPLE_ADMIN_DATA = {
-  totalTanks: 48,
-  averageFill: 54,
-  criticalTanks: 3,
-  openComplaints: 7,
-  distribution: [
-    { label: "Normal", value: 34, percent: 71, color: "text-success" },
-    { label: "Warning", value: 11, percent: 23, color: "text-warning" },
-    { label: "Critical", value: 3, percent: 6, color: "text-danger" },
-  ],
-  alerts: [
-    { id: "TNK-042", resident: "Christofe O.", address: "Blk 12 Lot 4, Broadway", level: 96, critical: true },
-    { id: "TNK-018", resident: "Kein T.", address: "Blk 7 Lot 22, Broadway", level: 92, critical: true },
-    { id: "TNK-031", resident: "Niel P.", address: "Blk 4 Lot 9, Broadway", level: 87, critical: true },
-  ],
-  tanks: [
-    { id: "TNK-042", resident: "Christofe O.", address: "Blk 12 Lot 4, Broadway", level: 96, date: "Mar 14, 2026", action: "Dispatch" },
-    { id: "TNK-018", resident: "Kein T.", address: "Blk 7 Lot 22, Broadway", level: 92, date: "Mar 17, 2026", action: "Dispatch" },
-    { id: "TNK-031", resident: "Niel P.", address: "Blk 4 Lot 9, Broadway", level: 87, date: "Mar 21, 2026", action: "Schedule" },
-    { id: "TNK-024", resident: "Jessa A.", address: "Blk 9 Lot 12, Broadway", level: 78, date: "Mar 26, 2026", action: "Schedule" },
-    { id: "TNK-007", resident: "Jhanna P.", address: "Blk 2 Lot 5, Broadway", level: 72, date: "Apr 02, 2026", action: "Schedule" },
-  ],
-};
+import { dispatchAdminDesludging, fetchAdminTanks } from "../api.js";
 
 export default function AdminDashboard({ navigate }) {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const routerNavigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [selectedTank, setSelectedTank] = useState(null);
   const [dispatchTank, setDispatchTank] = useState(null);
+  const [dashboardData, setDashboardData] = useState(null);
+  const [loadError, setLoadError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
   const soon = (name) => window.alert(`${name} will be connected in the next step.`);
   const signOut = async () => {
     await logout();
     routerNavigate("/");
   };
   const goToTanks = navigate ?? (() => routerNavigate("/admin/tanks"));
-  const confirmDispatch = ({ tankId, contractor, date }) =>
-    window.alert(`${tankId} desludging ${dispatchTank?.action === "Dispatch" ? "dispatched" : "scheduled"} to ${contractor} on ${date}. (Sample data — will save to the API later.)`);
-
+  useEffect(() => {
+    let current = true;
+    fetchAdminTanks(token)
+      .then((data) => {
+        if (!current) return;
+        setLoadError("");
+        const summary = data.summary ?? {};
+        const tanks = data.tanks ?? [];
+        setDashboardData({
+          ...summary,
+          tanks: tanks
+            .filter((tank) => tank.level !== null && tank.level >= 70)
+            .sort((a, b) => (b.level ?? 0) - (a.level ?? 0))
+            .slice(0, 5)
+            .map((tank) => ({
+              ...tank,
+              date: tank.measured_at ? new Date(tank.measured_at).toLocaleDateString() : "No reading",
+              action: tank.level >= 80 ? "Dispatch" : "Schedule",
+            })),
+          alerts: tanks
+            .filter((tank) => tank.level !== null && tank.level >= 80)
+            .sort((a, b) => (b.level ?? 0) - (a.level ?? 0))
+            .map((tank) => ({ ...tank, critical: true })),
+        });
+      })
+      .catch((error) => {
+        if (current) setLoadError(error.message);
+      })
+      .finally(() => {
+        if (current) setLoading(false);
+      });
+    return () => {
+      current = false;
+    };
+  }, [token, refreshKey]);
   return (
     <div className="min-h-screen bg-background text-foreground lg:flex">
       <AdminSidebar open={open} setOpen={setOpen} navigate={navigate ?? routerNavigate} user={user} signOut={signOut} active="Dashboard" />
@@ -78,14 +91,14 @@ export default function AdminDashboard({ navigate }) {
               <h1 className="mt-1 font-display text-xl font-bold">Dashboard</h1>
             </div>
           </div>
-          <NotificationPopover demoMode />
+          <AdminNotificationPopover token={token} navigate={routerNavigate} onViewAll={() => routerNavigate("/admin/residents")} />
         </header>
 
         <main className="mx-auto max-w-[1440px] space-y-5 p-4 sm:p-7">
           <section className="flex flex-col justify-between gap-4 rounded-lg border border-primary/20 bg-primary/25 p-5 sm:flex-row sm:items-center">
             <div>
               <div className="mb-2 flex items-center gap-2 text-[10px] text-primary">
-                <span className="rounded border border-primary/40 px-2 py-0.5 font-semibold uppercase">Sample data</span>
+                <span className="rounded border border-primary/40 px-2 py-0.5 font-semibold uppercase">Live data</span>
                 <span>Community overview</span>
               </div>
               <h2 className="font-display text-lg font-bold">Broadway Hagdan Loob HOA — Admin Overview</h2>
@@ -101,18 +114,44 @@ export default function AdminDashboard({ navigate }) {
           </section>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Stat icon={Boxes} label="Total Tanks" value={String(SAMPLE_ADMIN_DATA.totalTanks)} note="Active sensors deployed" tone="primary" />
-            <Stat icon={CircleAlert} label="Critical Tanks" value={String(SAMPLE_ADMIN_DATA.criticalTanks)} note="Requires attention" tone="danger" />
-            <Stat icon={ClipboardList} label="Open Complaints" value={String(SAMPLE_ADMIN_DATA.openComplaints)} note="Pending resolution" tone="warning" />
-            <Stat icon={Gauge} label="Avg. Fill Level" value={`${SAMPLE_ADMIN_DATA.averageFill}%`} note="Community average" tone="success" />
+            {loading ? (
+              <StatSkeletons />
+            ) : (
+              <>
+                <Stat icon={Boxes} label="Total Tanks" value={dashboardData ? String(dashboardData.total_tanks) : loadError ? "—" : "0"} note="Registered tanks" tone="primary" />
+                <Stat icon={CircleAlert} label="Critical Tanks" value={dashboardData ? String(dashboardData.critical_tanks) : loadError ? "—" : "0"} note="Requires attention" tone="danger" />
+                <Stat icon={ClipboardList} label="Open Complaints" value={dashboardData ? String(dashboardData.open_complaints) : loadError ? "—" : "0"} note="Pending resolution" tone="warning" />
+                <Stat icon={Gauge} label="Avg. Fill Level" value={dashboardData?.average_fill != null ? `${dashboardData.average_fill}%` : "—"} note="From latest readings" tone="success" />
+              </>
+            )}
           </div>
 
-          <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-            <Distribution />
-            <CriticalAlerts onView={setSelectedTank} />
-          </div>
+          {loadError && (
+            <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-danger/40 bg-danger/10 p-3 text-xs text-danger">
+              <span>Could not load dashboard data: {loadError}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoading(true);
+                  setLoadError("");
+                  setRefreshKey((key) => key + 1);
+                }}
+                className="rounded-md border border-danger/40 px-3 py-1.5 font-medium hover:bg-danger/10"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+          {loading ? (
+            <DashboardSectionsSkeleton />
+          ) : dashboardData ? (
+            <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+              <Distribution data={dashboardData} />
+              <CriticalAlerts data={dashboardData} onView={setSelectedTank} />
+            </div>
+          ) : null}
 
-          <section className="rounded-lg border border-border bg-card p-5">
+          <section className="rounded-lg border border-border bg-card p-5" aria-busy={loading}>
             <div className="flex items-start justify-between">
               <div>
                 <h2 className="font-display text-sm font-semibold">Priority Tanks</h2>
@@ -135,7 +174,21 @@ export default function AdminDashboard({ navigate }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {SAMPLE_ADMIN_DATA.tanks.map((t) => (
+                  {loading ? (
+                    <PriorityRowsSkeleton />
+                  ) : loadError ? (
+                    <tr>
+                      <td colSpan={6} className="px-3 py-8 text-center text-xs text-muted-foreground">
+                        Priority tank data is unavailable. Retry to load the dashboard.
+                      </td>
+                    </tr>
+                  ) : dashboardData?.tanks.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-3 py-8 text-center text-xs text-muted-foreground">
+                        No tanks currently require priority attention.
+                      </td>
+                    </tr>
+                  ) : (dashboardData?.tanks ?? []).map((t) => (
                     <tr key={t.id} className="border-b border-border/70 text-[11px] last:border-0">
                       <td className="px-3 py-4 font-medium">
                         <button onClick={() => setSelectedTank(t)} className="text-primary hover:underline">
@@ -165,9 +218,65 @@ export default function AdminDashboard({ navigate }) {
         </main>
       </div>
       <TankPanel tank={selectedTank} onClose={() => setSelectedTank(null)} onAction={soon} />
-      <DispatchModal tank={dispatchTank} onClose={() => setDispatchTank(null)} onConfirm={confirmDispatch} />
+      <DispatchModal
+        tank={dispatchTank}
+        onClose={() => setDispatchTank(null)}
+        onConfirm={async ({ tankId, scheduledFor }) => {
+          await dispatchAdminDesludging(token, tankId, scheduledFor);
+          setRefreshKey((key) => key + 1);
+        }}
+      />
     </div>
   );
+}
+
+function StatSkeletons() {
+  return Array.from({ length: 4 }, (_, index) => (
+    <div key={index} className="rounded-lg border border-border bg-card p-4" aria-hidden="true">
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="h-8 w-8 rounded-md" />
+      </div>
+      <Skeleton className="mt-3 h-8 w-16" />
+      <Skeleton className="mt-4 h-3 w-28" />
+    </div>
+  ));
+}
+
+function DashboardSectionsSkeleton() {
+  return (
+    <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]" aria-label="Loading dashboard sections" aria-busy="true">
+      <div className="rounded-lg border border-border bg-card p-5">
+        <Skeleton className="h-4 w-40" />
+        <Skeleton className="mt-2 h-3 w-52" />
+        <div className="mt-5 flex items-center gap-6">
+          <Skeleton className="h-36 w-36 rounded-full" />
+          <div className="flex-1 space-y-2">
+            {Array.from({ length: 3 }, (_, index) => <Skeleton key={index} className="h-10 w-full" />)}
+          </div>
+        </div>
+      </div>
+      <div className="rounded-lg border border-border bg-card p-5">
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="mt-2 h-3 w-48" />
+        <div className="mt-5 space-y-2">
+          {Array.from({ length: 3 }, (_, index) => <Skeleton key={index} className="h-14 w-full" />)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PriorityRowsSkeleton() {
+  return Array.from({ length: 4 }, (_, index) => (
+    <tr key={index} aria-hidden="true" className="border-b border-border/70">
+      {Array.from({ length: 6 }, (_, cellIndex) => (
+        <td key={cellIndex} className="px-3 py-4">
+          <Skeleton className={cellIndex === 5 ? "ml-auto h-8 w-20" : "h-3 w-24"} />
+        </td>
+      ))}
+    </tr>
+  ));
 }
 
 function Stat({ icon: Icon, label, value, note, tone }) {
@@ -191,7 +300,36 @@ function Stat({ icon: Icon, label, value, note, tone }) {
   );
 }
 
-function Distribution() {
+function Distribution({ data }) {
+  const summary = data ?? { total_tanks: 0, distribution: [] };
+  const distribution = Array.isArray(summary.distribution) ? summary.distribution : [];
+  const circumference = 264;
+  const segments = distribution.map((item, index) => {
+    const length = summary.total_tanks
+      ? (item.value / summary.total_tanks) * circumference
+      : 0;
+    const offset = distribution.slice(0, index).reduce((sum, previous) => (
+      summary.total_tanks
+        ? sum + (previous.value / summary.total_tanks) * circumference
+        : sum
+    ), 0);
+    const segment = (
+      <circle
+        key={item.label}
+        cx="60"
+        cy="60"
+        r="42"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="16"
+        strokeDasharray={`${length} ${circumference - length}`}
+        strokeDashoffset={-offset}
+        className={item.color}
+      />
+    );
+    return segment;
+  });
+
   return (
     <section className="rounded-lg border border-border bg-card p-5">
       <h2 className="font-display text-sm font-semibold">Community Tank Status</h2>
@@ -200,17 +338,15 @@ function Distribution() {
         <div className="relative mx-auto h-36 w-36">
           <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
             <circle cx="60" cy="60" r="42" fill="none" stroke="currentColor" strokeWidth="16" className="text-muted" />
-            <circle cx="60" cy="60" r="42" fill="none" stroke="currentColor" strokeWidth="16" strokeDasharray="187 264" className="text-success" />
-            <circle cx="60" cy="60" r="42" fill="none" stroke="currentColor" strokeWidth="16" strokeDasharray="61 264" strokeDashoffset="-187" className="text-warning" />
-            <circle cx="60" cy="60" r="42" fill="none" stroke="currentColor" strokeWidth="16" strokeDasharray="16 264" strokeDashoffset="-248" className="text-danger" />
+            {segments}
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <b className="font-display text-2xl">{SAMPLE_ADMIN_DATA.totalTanks}</b>
+            <b className="font-display text-2xl">{summary.total_tanks}</b>
             <span className="text-[8px] text-muted-foreground">TOTAL TANKS</span>
           </div>
         </div>
         <div className="space-y-2">
-          {SAMPLE_ADMIN_DATA.distribution.map((x) => (
+          {distribution.map((x) => (
             <div key={x.label} className="flex items-center rounded-md bg-muted/60 px-3 py-3 text-[11px]">
               <i className={`mr-2 h-2.5 w-2.5 rounded-full bg-current ${x.color}`} />
               <span className="flex-1">{x.label}</span>
@@ -224,7 +360,8 @@ function Distribution() {
   );
 }
 
-function CriticalAlerts({ onView }) {
+function CriticalAlerts({ data, onView }) {
+  const alerts = data?.alerts ?? [];
   return (
     <section className="rounded-lg border border-border bg-card p-5">
       <div className="flex items-center justify-between">
@@ -233,11 +370,13 @@ function CriticalAlerts({ onView }) {
           <p className="mt-1 text-[10px] text-muted-foreground">Tanks requiring immediate action</p>
         </div>
         <span className="rounded-full bg-danger/15 px-2 py-1 text-[8px] text-danger">
-          {SAMPLE_ADMIN_DATA.alerts.length} ACTIVE
+          {alerts.length} ACTIVE
         </span>
       </div>
       <div className="mt-4 space-y-2">
-        {SAMPLE_ADMIN_DATA.alerts.map((a) => (
+        {alerts.length === 0 ? (
+          <p className="rounded-md bg-muted/50 p-4 text-xs text-muted-foreground">No critical tanks with recent readings.</p>
+        ) : alerts.map((a) => (
           <div
             key={a.id}
             className={`flex items-center border-l-2 ${a.critical ? "border-danger" : "border-warning"} rounded-md bg-muted/50 p-3`}

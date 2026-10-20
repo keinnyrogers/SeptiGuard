@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import { KeyRound, Eye, EyeOff, CheckCircle2, AlertCircle } from "lucide-react";
 import SlidePanel from "./SlidePanel.jsx";
+import { changeResidentPassword } from "../api.js";
 
-/* TODO backend: replace the simulated save with PUT /api/user/password
-   (current_password, password, password_confirmation) using septiguard_token. */
-export default function ChangePasswordPanel({ open, onClose }) {
+export default function ChangePasswordPanel({ open, onClose, token }) {
   const [form, setForm] = useState({ current: "", next: "", confirm: "" });
   const [show, setShow] = useState({});
   const [error, setError] = useState("");
@@ -18,18 +17,22 @@ export default function ChangePasswordPanel({ open, onClose }) {
     }
   }, [open]);
 
-  const submit = () => {
+  const submit = async () => {
     setError("");
     if (!form.current) return setError("Please enter your current password.");
     if (form.next.length < 8) return setError("New password must be at least 8 characters.");
     if (form.next === form.current) return setError("New password must be different from your current one.");
     if (form.next !== form.confirm) return setError("New passwords do not match.");
     setSaving(true);
-    setTimeout(() => {
+    try {
+      await changeResidentPassword(token, form.current, form.next, form.confirm);
       setSaving(false);
       setSuccess(true);
       setTimeout(onClose, 1500);
-    }, 800);
+    } catch (submitError) {
+      setSaving(false);
+      setError(submitError.message);
+    }
   };
 
   const field = (key, label, placeholder) => (

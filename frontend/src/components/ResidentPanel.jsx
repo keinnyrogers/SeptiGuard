@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { X, Mail, Phone, MapPin, Gauge, Pencil } from "lucide-react";
-import { SAMPLE_DATA, CATEGORY_LABELS, STATUS_LABELS } from "@/data/complaints";
+import { CATEGORY_LABELS, STATUS_LABELS } from "@/data/complaints";
 
 const ACCOUNT_BADGE = {
   pending: "bg-warning/15 text-warning",
@@ -33,7 +33,7 @@ function fmtDate(iso) {
 const field =
   "h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus:border-ring";
 
-export default function ResidentPanel({ resident, mode = "view", onClose, onSave, onModeChange }) {
+export default function ResidentPanel({ resident, mode = "view", onClose, onSave, onModeChange, onApproval, updating = false }) {
   const [form, setForm] = useState(resident ?? {});
 
   useEffect(() => {
@@ -42,18 +42,14 @@ export default function ResidentPanel({ resident, mode = "view", onClose, onSave
 
   if (!resident) return null;
 
-  const complaints = SAMPLE_DATA.filter(
-    (c) => c.tank_id === resident.tank_id || c.location === resident.block_lot,
-  ).slice(0, 4);
+  const complaints = resident.recent_complaints ?? [];
 
   function submit(e) {
     e.preventDefault();
-    // Later: PUT to Laravel — updates users + resident_profiles (+ septic_systems assignment).
+    // Resident profile edits are currently reflected in the resident list.
     onSave({
       ...resident,
       ...form,
-      fill_level: form.tank_id ? resident.fill_level : null,
-      tank_status: form.tank_id ? resident.tank_status : null,
     });
   }
 
@@ -160,8 +156,29 @@ export default function ResidentPanel({ resident, mode = "view", onClose, onSave
               </section>
             </div>
 
-            <footer className="flex justify-end gap-2 border-t border-border px-5 py-4">
+            <footer className="flex flex-wrap justify-end gap-2 border-t border-border px-5 py-4">
               <button type="button" onClick={onClose} className="h-10 rounded-md border border-border px-4 text-sm hover:bg-muted">Close</button>
+              {resident.status === "pending" && onApproval && (
+                <>
+                  <button
+                    type="button"
+                    disabled={updating}
+                    onClick={() => onApproval("rejected")}
+                    className="h-10 rounded-md bg-danger/15 px-4 text-sm font-medium text-danger hover:bg-danger/25 disabled:cursor-wait disabled:opacity-50"
+                  >
+                    Reject
+                  </button>
+                  <button
+                    type="button"
+                    disabled={updating}
+                    onClick={() => onApproval("approved")}
+                    className="h-10 rounded-md bg-success/15 px-4 text-sm font-medium text-success hover:bg-success/25 disabled:cursor-wait disabled:opacity-50"
+                  >
+                    {updating ? "Saving…" : "Approve"}
+                  </button>
+                </>
+              )}
+              {resident.status !== "pending" && (
               <button
                 type="button"
                 onClick={() => onModeChange("edit")}
@@ -169,6 +186,7 @@ export default function ResidentPanel({ resident, mode = "view", onClose, onSave
               >
                 <Pencil className="h-4 w-4" /> Edit resident
               </button>
+              )}
             </footer>
           </>
         ) : (
@@ -179,13 +197,12 @@ export default function ResidentPanel({ resident, mode = "view", onClose, onSave
                 ["email", "Email", "email"],
                 ["phone", "Phone", "tel"],
                 ["block_lot", "Block / Lot", "text"],
-                ["tank_id", "Tank assignment (leave blank to unassign)", "text"],
               ].map(([k, label, type]) => (
                 <label key={k} className="block text-xs text-muted-foreground">
                   {label}
                   <input
                     type={type}
-                    required={k !== "tank_id"}
+                    required
                     value={form[k] ?? ""}
                     onChange={(e) => setForm({ ...form, [k]: e.target.value })}
                     className={`${field} mt-1`}

@@ -27,7 +27,6 @@ export const SAMPLE_DATA = [
     id: 1,
     ticket_code: "CMP-2041",
     category: "septic_tank",
-    priority: "high",
     title: "Foul odor near tank — urgent",
     description:
       "Strong sewage smell coming from the back of the property since yesterday evening. Tank reading seems unusually high and the smell gets worse at night.",
@@ -45,7 +44,6 @@ export const SAMPLE_DATA = [
     id: 2,
     ticket_code: "CMP-2040",
     category: "septic_tank",
-    priority: "medium",
     title: "Slow drainage in bathroom sink",
     description:
       "Water in bathroom drains very slowly for the past 3 days. Possible blockage related to tank line on the east side of the house.",
@@ -63,7 +61,6 @@ export const SAMPLE_DATA = [
     id: 3,
     ticket_code: "CMP-2039",
     category: "garbage",
-    priority: "high",
     title: "Uncollected garbage piling up on corner lot",
     description:
       "Collection truck skipped our street twice this week. Bags are piling up on the corner and attracting stray animals.",
@@ -81,7 +78,6 @@ export const SAMPLE_DATA = [
     id: 4,
     ticket_code: "CMP-2038",
     category: "septic_tank",
-    priority: "low",
     title: "Request earlier desludging schedule",
     description:
       "Requesting to move our desludging appointment earlier since the household size increased this month.",
@@ -99,7 +95,6 @@ export const SAMPLE_DATA = [
     id: 5,
     ticket_code: "CMP-2037",
     category: "street_lights",
-    priority: "medium",
     title: "Two street lights out along main road",
     description:
       "Lights near the clubhouse entrance have been out for a week, making the walk home dark and unsafe.",
@@ -117,7 +112,6 @@ export const SAMPLE_DATA = [
     id: 6,
     ticket_code: "CMP-2036",
     category: "road_damage",
-    priority: "high",
     title: "Large pothole after heavy rain",
     description:
       "A deep pothole formed near the corner of Phase 1. Two motorcycles already skidded there.",
@@ -135,7 +129,6 @@ export const SAMPLE_DATA = [
     id: 7,
     ticket_code: "CMP-2035",
     category: "noise",
-    priority: "low",
     title: "Late night videoke from neighbor",
     description:
       "Loud singing past midnight on weekends. Requesting a reminder about quiet hours in the subdivision.",
@@ -153,7 +146,6 @@ export const SAMPLE_DATA = [
     id: 8,
     ticket_code: "CMP-2034",
     category: "water_supply",
-    priority: "medium",
     title: "Low water pressure every morning",
     description:
       "Water pressure drops to almost nothing between 6 and 8 AM. Affects the whole row of houses.",
@@ -171,7 +163,6 @@ export const SAMPLE_DATA = [
     id: 9,
     ticket_code: "CMP-2033",
     category: "other",
-    priority: "low",
     title: "Request for additional guest parking slot",
     description:
       "Asking if a guest parking slot can be added near the covered court for weekend visitors.",

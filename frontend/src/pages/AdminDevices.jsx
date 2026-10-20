@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Cpu, Wifi, WifiOff, BatteryLow, Plus, Eye, Menu, X, Check } from "lucide-react";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import DevicePanel from "@/components/DevicePanel";
-import { SAMPLE_DEVICES, LOW_BATTERY_THRESHOLD } from "@/data/devices";
+import { LOW_BATTERY_THRESHOLD } from "@/data/devices";
 import { useAuth } from "../context/AuthContext.jsx";
+import { createAdminDevice, fetchAdminDevices } from "../api.js";
 
 const STATUS_BADGE = {
   online: "bg-success/15 text-success",
@@ -31,12 +32,14 @@ function timeAgo(iso) {
   return `${Math.round(h / 24)} d ago`;
 }
 
-const EMPTY_FORM = { device_id: "", resident: "", block_lot: "" };
+const EMPTY_FORM = { device_id: "", tank_type: "", capacity_liters: "", location: "" };
 
 export default function AdminDevices() {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const navigate = useNavigate();
-  const [devices, setDevices] = useState(SAMPLE_DEVICES);
+  const [devices, setDevices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [signalFilter, setSignalFilter] = useState("all");
@@ -47,8 +50,17 @@ export default function AdminDevices() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState("");
 
+  useEffect(() => {
+    let current = true;
+    fetchAdminDevices(token)
+      .then((items) => { if (current) setDevices(items); })
+      .catch((error) => { if (current) setLoadError(error.message); })
+      .finally(() => { if (current) setLoading(false); });
+    return () => { current = false; };
+  }, [token]);
+
   const blocks = useMemo(
-    () => [...new Set(devices.map((d) => d.block_lot.split(" ")[0]))].sort(),
+    () => [...new Set(devices.map((d) => d.block_lot?.split(" ")[0]).filter(Boolean))].sort(),
     [devices],
   );
 
@@ -68,36 +80,32 @@ export default function AdminDevices() {
       (d) =>
         (statusFilter === "all" || d.status === statusFilter) &&
         (signalFilter === "all" || d.signal === signalFilter) &&
-        (blockFilter === "all" || d.block_lot.startsWith(blockFilter)) &&
+        (blockFilter === "all" || d.block_lot?.startsWith(blockFilter)) &&
         (!q || [d.device_id, d.resident, d.block_lot].join(" ").toLowerCase().includes(q)),
     );
   }, [devices, query, statusFilter, signalFilter, blockFilter]);
 
-  function submit(e) {
+  async function submit(e) {
     e.preventDefault();
     const deviceId = form.device_id.trim();
     if (devices.some((device) => device.device_id.toLowerCase() === deviceId.toLowerCase())) {
       setFormError("A device with this ID is already registered.");
       return;
     }
-    // Later: POST to Laravel — creates a septic_systems row with this device_id.
-    setDevices((prev) => [
-      {
-        id: Date.now(),
-        device_id: deviceId,
-        resident: form.resident.trim(),
-        block_lot: form.block_lot.trim(),
-        status: "offline",
-        signal: null,
-        battery: null,
-        last_reading_at: null,
-        firmware: "v2.4.1",
-      },
-      ...prev,
-    ]);
-    setForm(EMPTY_FORM);
     setFormError("");
-    setFormOpen(false);
+    try {
+      const device = await createAdminDevice(token, {
+        device_id: deviceId,
+        tank_type: form.tank_type || null,
+        capacity_liters: form.capacity_liters ? Number(form.capacity_liters) : null,
+        location: form.location || null,
+      });
+      setDevices((prev) => [...prev, device]);
+      setForm(EMPTY_FORM);
+      setFormOpen(false);
+    } catch (error) {
+      setFormError(error.message);
+    }
   }
 
   function handleDeviceSave(updatedDevice) {
@@ -177,7 +185,7 @@ export default function AdminDevices() {
           </select>
         </div>
 
-        <div className="mt-4 overflow-x-auto rounded-lg border border-border bg-card">
+        {loading ? <div className="mt-4 rounded-lg border border-dashed border-border p-10 text-center text-sm">Loading devices...</div> : loadError ? <div className="mt-4 rounded-lg border border-danger/40 bg-danger/10 p-10 text-center text-sm text-danger">{loadError}</div> : <div className="mt-4 overflow-x-auto rounded-lg border border-border bg-card">
           <table className="w-full min-w-[950px] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -192,18 +200,20 @@ export default function AdminDevices() {
                   <td className="px-4 py-3 font-mono text-xs text-primary">{d.device_id}</td>
                   <td className="px-4 py-3">
                     <p className="font-medium">{d.resident}</p>
-                    <p className="text-xs text-muted-foreground">{d.block_lot}</p>
+                    <p className="text-xs text-muted-foreground">{d.block_lot ?? "Not paired"}</p>
                   </td>
                   <td className="px-4 py-3"><span className={`rounded-md px-2 py-1 text-xs font-medium capitalize ${STATUS_BADGE[d.status]}`}>{d.status}</span></td>
                   <td className="px-4 py-3">
                     {d.status === "offline" ? (
                       <span className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground">No signal</span>
-                    ) : (
+                    ) : d.signal ? (
                       <span className={`rounded-md px-2 py-1 text-xs font-medium capitalize ${SIGNAL_BADGE[d.signal]}`}>{d.signal}</span>
+                    ) : (
+                      <span className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground">Not reported</span>
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {d.status === "offline" ? (
+                    {d.status === "offline" || d.battery == null ? (
                       <span className="text-muted-foreground">--</span>
                     ) : (
                       <div className="flex items-center gap-2">
@@ -213,7 +223,7 @@ export default function AdminDevices() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">{timeAgo(d.last_reading_at)}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{d.firmware}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{d.firmware ?? "Not reported"}</td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
                       <button
@@ -241,7 +251,7 @@ export default function AdminDevices() {
             </tbody>
           </table>
           <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">Showing {visible.length} of {devices.length} devices</p>
-        </div>
+        </div>}
         </div>
       </main>
 
@@ -261,12 +271,17 @@ export default function AdminDevices() {
               <button type="button" onClick={() => setFormOpen(false)} aria-label="Close"><X className="h-4 w-4" /></button>
             </div>
             {formError && <p role="alert" className="text-xs text-danger">{formError}</p>}
-            {[["device_id", "Device ID (e.g. SG-012A)", "text"], ["resident", "Resident name", "text"], ["block_lot", "Block / Lot (e.g. Blk 3 Lot 7)", "text"]].map(([k, label, type]) => (
+            {[
+              ["device_id", "Hardware Device ID (e.g. TNK-A1B2C3D4)", "text"],
+              ["tank_type", "Tank type (optional)", "text"],
+              ["capacity_liters", "Capacity in liters (optional)", "number"],
+              ["location", "Installation location (optional)", "text"],
+            ].map(([k, label, type]) => (
               <label key={k} className="block text-xs text-muted-foreground">{label}
-                <input type={type} required value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} className={`${field} mt-1 text-foreground`} />
+                <input type={type} min={0} step={type === "number" ? "0.1" : undefined} required={k === "device_id"} value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} className={`${field} mt-1 text-foreground`} />
               </label>
             ))}
-            <p className="text-xs text-muted-foreground">New devices start offline until the hardware reports its first reading.</p>
+            <p className="text-xs text-muted-foreground">Read the ID shown on the device OLED or Serial Monitor. Register the ID here; the resident will enter the tank height while pairing.</p>
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setFormOpen(false)} className="h-9 rounded-md border border-border px-4 text-sm hover:bg-muted">Cancel</button>
               <button type="submit" className="flex h-9 items-center gap-1 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90"><Check className="h-4 w-4" />Register Device</button>

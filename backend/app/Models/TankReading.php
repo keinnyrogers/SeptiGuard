@@ -34,6 +34,7 @@ class TankReading extends Model
     {
         return [
             'measured_at' => 'datetime',
+            'fill_level_percentage' => 'decimal:2',
             'distance_cm' => 'decimal:2',
         ];
     }

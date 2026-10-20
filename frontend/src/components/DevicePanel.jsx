@@ -100,7 +100,7 @@ export default function DevicePanel({ device, onClose, onSave }) {
                 )}
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Firmware</span>
-                  <span className="font-mono text-xs">{device.firmware}</span>
+                  <span className="font-mono text-xs">{device.firmware ?? "Not reported"}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Last reading</span>

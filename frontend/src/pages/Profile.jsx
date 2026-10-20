@@ -1,10 +1,16 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Activity, AtSign, Bell, Bot, Camera, Copy, FileWarning, Hash, Home, KeyRound, LogOut, Mail,
-  MapPin, Menu, MessageSquare, Phone, Save, ShieldCheck, ShieldQuestion, UserRound, Wrench,
+  MapPin, Menu, Phone, Save, ShieldCheck, ShieldQuestion, UserRound, Wrench,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
+import {
+  fetchResidentAccount,
+  fetchResidentTankLatest,
+  uploadResidentProfilePhoto,
+} from "../api.js";
+import ResidentAvatar from "../components/ResidentAvatar.jsx";
 import ChangePasswordPanel from "../components/ChangePasswordPanel.jsx";
 import RequestInfoChangePanel from "../components/RequestInfoChangePanel.jsx";
 
@@ -33,13 +39,13 @@ const NAV = [
   { icon: Activity, label: "Monitoring", to: "/monitor" },
   { icon: Bot, label: "Predict", to: "/predict" },
   { icon: FileWarning, label: "Complaints", to: "/complaints" },
-  { icon: Wrench, label: "Maintain", to: "/maintain" },
+  { icon: Wrench, label: "Maintenance", to: "/maintain" },
   { icon: Bell, label: "Alerts", to: "/alerts" },
   { icon: UserRound, label: "Profile", to: "/profile", active: true },
 ];
 
 export default function Profile() {
-  const { user, logout } = useAuth();
+  const { user, token, logout, updateUser, profilePhotoUrl } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [passwordPanelOpen, setPasswordPanelOpen] = useState(false);
@@ -47,8 +53,16 @@ export default function Profile() {
   const demoMode = Boolean(user?.demo_mode);
   const profile = user?.resident_profile ?? user?.residentProfile ?? null;
   const tank = user?.septic_system ?? user?.septicSystem ?? null;
+  const [liveTank, setLiveTank] = useState(tank);
+  const [demoPhotoUrl, setDemoPhotoUrl] = useState(null);
+  const photoUrl = demoMode ? demoPhotoUrl : profilePhotoUrl;
+  const [photoError, setPhotoError] = useState("");
+  const [accountRefreshError, setAccountRefreshError] = useState("");
+  const [demoAddressSaved, setDemoAddressSaved] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInput = useRef(null);
   const [address, setAddress] = useState(SAMPLE.address);
-  const [prefs, setPrefs] = useState({ push: true, email: true, sms: false });
+  const [prefs, setPrefs] = useState({ push: true, email: true });
 
   const name = user?.name ?? "Resident";
   const initials = name
@@ -60,6 +74,78 @@ export default function Profile() {
     .toUpperCase() || "R";
   const soon = (what) => window.alert(`${what} will be connected in the next step.`);
   const signOut = async () => { await logout(); navigate("/"); };
+  const handlePhotoChange = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setPhotoError("");
+    if (demoMode) {
+      const temporaryUrl = URL.createObjectURL(file);
+      setDemoPhotoUrl((previousUrl) => {
+        if (previousUrl?.startsWith("blob:")) URL.revokeObjectURL(previousUrl);
+        return temporaryUrl;
+      });
+      return;
+    }
+
+    setUploadingPhoto(true);
+    try {
+      const result = await uploadResidentProfilePhoto(token, file);
+      updateUser({
+        resident_profile: {
+          ...profile,
+          profile_photo_path: result?.data?.profile_photo_path,
+        },
+      });
+    } catch (error) {
+      setPhotoError(error.message);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  useEffect(() => () => {
+    if (demoPhotoUrl?.startsWith("blob:")) URL.revokeObjectURL(demoPhotoUrl);
+  }, [demoPhotoUrl]);
+
+  useEffect(() => {
+    if (demoMode || !token) return undefined;
+
+    let active = true;
+    fetchResidentAccount(token)
+      .then((account) => {
+        if (!active || !account) return;
+        updateUser(account);
+        setAccountRefreshError("");
+      })
+      .catch((error) => {
+        if (active) setAccountRefreshError(error.message);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [demoMode, token, updateUser]);
+
+  useEffect(() => {
+    if (demoMode || !token) return undefined;
+
+    let active = true;
+    fetchResidentTankLatest(token)
+      .then((data) => {
+        if (active) {
+          setLiveTank(data?.device_id ? data : null);
+        }
+      })
+      .catch(() => {
+        if (active) setLiveTank(tank);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [demoMode, token, tank]);
 
   return (
     <div className="min-h-screen bg-background text-foreground lg:flex">
@@ -82,7 +168,7 @@ export default function Profile() {
           ))}
         </nav>
         <div className="flex flex-col items-center gap-2 border-t border-border pt-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-primary text-[10px] font-semibold">{initials}</div>
+          <ResidentAvatar />
           <button onClick={signOut} title="Sign out" className="p-2 text-muted-foreground hover:text-danger"><LogOut className="h-4 w-4" /></button>
         </div>
       </aside>
@@ -98,9 +184,15 @@ export default function Profile() {
               <p className="mt-1 text-xs text-muted-foreground">Manage your account details and preferences</p>
             </div>
           </div>
-          <button onClick={() => soon("Saving address changes")} className="flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground sm:h-10 sm:gap-2 sm:px-4 sm:text-sm">
-            <Save className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> <span className="whitespace-nowrap">Save changes</span>
-          </button>
+          {demoMode && (
+            <button
+              onClick={() => setDemoAddressSaved(true)}
+              className="flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground sm:h-10 sm:gap-2 sm:px-4 sm:text-sm"
+            >
+              <Save className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="whitespace-nowrap">{demoAddressSaved ? "Demo changes saved" : "Save demo changes"}</span>
+            </button>
+          )}
         </header>
 
         <main className="mx-auto max-w-[1440px] space-y-5 p-4 sm:p-7">
@@ -110,9 +202,27 @@ export default function Profile() {
             <div className="space-y-5">
               <section className="rounded-lg border border-border bg-card p-6 text-center">
                 <div className="relative mx-auto w-fit">
-                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-primary/15 font-display text-2xl font-bold text-primary">{initials}</div>
-                  <button onClick={() => soon("Photo upload")} className="absolute bottom-1 right-1 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground"><Camera className="h-3.5 w-3.5" /></button>
+                  {photoUrl
+                    ? <img src={photoUrl} alt={`${name}'s profile`} className="h-24 w-24 rounded-full object-cover" />
+                    : <div className="flex h-24 w-24 items-center justify-center rounded-full bg-primary/15 font-display text-2xl font-bold text-primary">{initials}</div>}
+                  <input
+                    ref={photoInput}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handlePhotoChange}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => photoInput.current?.click()}
+                    disabled={uploadingPhoto}
+                    aria-label={uploadingPhoto ? "Uploading profile photo" : "Upload profile photo"}
+                    className="absolute bottom-1 right-1 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-60"
+                  >
+                    <Camera className="h-3.5 w-3.5" />
+                  </button>
                 </div>
+                {photoError && <p role="alert" className="mt-2 text-xs text-danger">{photoError}</p>}
                 <h2 className="mt-4 font-display text-lg font-bold">{name}</h2>
                 <p className="mt-1 text-xs text-muted-foreground">Resident · {demoMode ? SAMPLE.blkLot : (profile?.address ?? "Address not set")}</p>
                 <div className="mt-3 flex flex-wrap justify-center gap-2">
@@ -146,7 +256,20 @@ export default function Profile() {
                     <Tile label="Sensor" value={SAMPLE.tank.sensor} />
                     <Tile label="Status" value="Online" dot />
                   </div>
-                </div> : <div className="mt-4 rounded-md border border-dashed border-border bg-muted/20 p-6 text-center"><p className="text-sm font-medium">{tank?.device_id ?? "No tank linked yet"}</p><p className="mt-1 text-xs text-muted-foreground">Tank capacity, installation, and sensor status will appear after the HOA links a septic system.</p></div>}
+                </div> : liveTank?.device_id ? <div className="mt-4 space-y-2">
+                  <div className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-3">
+                    <div>
+                      <p className="text-[9px] uppercase text-muted-foreground">Device ID</p>
+                      <p className="mt-1 text-sm font-medium">{liveTank.device_id}</p>
+                    </div>
+                    <span className="rounded-full bg-success/15 px-2 py-1 text-[10px] font-medium text-success">Linked</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    <Tile label="Tank height" value={liveTank.tank_height_cm ? `${liveTank.tank_height_cm} cm` : "Not set"} />
+                    <Tile label="Sensor" value={liveTank.has_sensor ? "Registered" : "Not linked"} dot={liveTank.has_sensor} />
+                    <Tile label="Reading" value={liveTank.reading ? `${liveTank.reading.fill_level_percentage}%` : "No reading"} />
+                  </div>
+                </div> : <div className="mt-4 rounded-md border border-dashed border-border bg-muted/20 p-6 text-center"><p className="text-sm font-medium">No tank linked yet</p><p className="mt-1 text-xs text-muted-foreground">Tank details will appear after the HOA links a septic system.</p></div>}
               </section>
             </div>
 
@@ -155,10 +278,11 @@ export default function Profile() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <h2 className="flex items-center gap-2 font-display font-semibold"><UserRound className="h-4 w-4 text-primary" /> Personal Information</h2>
-                    <p className="mt-1 text-xs text-muted-foreground">Contact HOA admin to request changes to these fields</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Request a change for HOA review</p>
                   </div>
                   <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/60 px-2 py-1 text-[10px] text-muted-foreground"><ShieldCheck className="h-3 w-3" /> View only</span>
                 </div>
+                {accountRefreshError && <p role="alert" className="mt-3 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">Could not refresh your account details: {accountRefreshError}</p>}
                 <div className="mt-5 grid gap-4 md:grid-cols-2">
                   <ReadField icon={UserRound} label="Full Name" value={name} />
                   <ReadField icon={Mail} label="Email Address" value={user?.email ?? "—"} />
@@ -172,12 +296,12 @@ export default function Profile() {
                 <h2 className="flex items-center gap-2 font-display font-semibold"><MapPin className="h-4 w-4 text-primary" /> Address Information</h2>
                 <p className="mt-1 text-xs text-muted-foreground">Property location within the community</p>
                 {demoMode ? <div className="mt-5 grid gap-4 md:grid-cols-2">
-                  <EditField label="Street Address" value={address.street} onChange={(v) => setAddress({ ...address, street: v })} />
-                  <EditField label="Phase" value={address.phase} onChange={(v) => setAddress({ ...address, phase: v })} />
-                  <EditField label="Subdivision" value={address.subdivision} onChange={(v) => setAddress({ ...address, subdivision: v })} />
-                  <EditField label="City" value={address.city} onChange={(v) => setAddress({ ...address, city: v })} />
-                  <EditField label="ZIP Code" value={address.zip} onChange={(v) => setAddress({ ...address, zip: v })} />
-                </div> : <div className="mt-5 rounded-md border border-border bg-muted/30 p-4"><p className="text-xs text-muted-foreground">Registered address</p><p className="mt-1 text-sm font-medium">{profile?.address ?? user?.address ?? "No address saved"}</p></div>}
+                  <EditField label="Street Address" value={address.street} onChange={(v) => { setAddress({ ...address, street: v }); setDemoAddressSaved(false); }} />
+                  <EditField label="Phase" value={address.phase} onChange={(v) => { setAddress({ ...address, phase: v }); setDemoAddressSaved(false); }} />
+                  <EditField label="Subdivision" value={address.subdivision} onChange={(v) => { setAddress({ ...address, subdivision: v }); setDemoAddressSaved(false); }} />
+                  <EditField label="City" value={address.city} onChange={(v) => { setAddress({ ...address, city: v }); setDemoAddressSaved(false); }} />
+                  <EditField label="ZIP Code" value={address.zip} onChange={(v) => { setAddress({ ...address, zip: v }); setDemoAddressSaved(false); }} />
+                </div> : <div className="mt-5 rounded-md border border-border bg-muted/30 p-4"><p className="text-xs text-muted-foreground">Registered address</p><p className="mt-1 text-sm font-medium">{profile?.address ?? user?.address ?? "No address saved"}</p><button type="button" onClick={() => setInfoChangePanelOpen(true)} className="mt-3 text-xs font-medium text-primary hover:underline">Request an address change through the HOA</button></div>}
               </section>
 
               <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
@@ -186,8 +310,11 @@ export default function Profile() {
                 {demoMode ? <div className="mt-4 space-y-2">
                   <Toggle icon={Bell} title="Push Notifications" detail="Alerts about tank levels and complaints" checked={prefs.push} onChange={(v) => setPrefs({ ...prefs, push: v })} />
                   <Toggle icon={Mail} title="Email Digest" detail="Weekly summary every Monday" checked={prefs.email} onChange={(v) => setPrefs({ ...prefs, email: v })} />
-                  <Toggle icon={MessageSquare} title="SMS Alerts" detail="Critical notifications only" checked={prefs.sms} onChange={(v) => setPrefs({ ...prefs, sms: v })} />
-                </div> : <p className="mt-4 rounded-md border border-dashed border-border p-4 text-xs text-muted-foreground">Notification preferences will appear here when available.</p>}
+                </div> : <>
+                  <p className="mt-4 rounded-md border border-border bg-muted/30 p-4 text-xs text-muted-foreground">
+                    Portal alerts appear in your Alerts page. Email notifications are sent to {user?.email ?? "your account email"} when email delivery is configured by the HOA.
+                  </p>
+                </>}
               </section>
 
               <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
@@ -206,14 +333,18 @@ export default function Profile() {
           </div>
         </main>
       </div>
-      <ChangePasswordPanel open={passwordPanelOpen} onClose={() => setPasswordPanelOpen(false)} />
+      <ChangePasswordPanel open={passwordPanelOpen} onClose={() => setPasswordPanelOpen(false)} token={token} />
       <RequestInfoChangePanel
         open={infoChangePanelOpen}
         onClose={() => setInfoChangePanelOpen(false)}
+        token={token}
+        demoMode={demoMode}
         current={{
           name,
           email: user?.email ?? "",
           phone: demoMode ? SAMPLE.phone : (profile?.contact_number ?? user?.contact_number ?? ""),
+          address: demoMode ? SAMPLE.blkLot : (profile?.address ?? user?.address ?? ""),
+          household: profile?.household_members ?? "",
         }}
       />
     </div>
@@ -232,8 +363,8 @@ function ReadField({ icon: Icon, label, value }) {
 function EditField({ label, value, onChange }) {
   return <div><label className="text-xs text-muted-foreground">{label}</label><input value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} className="mt-1.5 h-11 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary" /></div>;
 }
-function Toggle({ icon: Icon, title, detail, checked, onChange }) {
-  return <div className="flex items-center gap-3 rounded-md border border-border bg-muted/30 p-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10"><Icon className="h-4 w-4 text-primary" /></div><div className="min-w-0 flex-1"><p className="text-sm font-medium">{title}</p><p className="mt-0.5 text-[11px] text-muted-foreground">{detail}</p></div><button role="switch" aria-checked={checked} aria-label={title} onClick={() => onChange(!checked)} className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${checked ? "bg-primary" : "bg-muted"}`}><span className={`absolute top-0.5 h-5 w-5 rounded-full bg-background transition-all ${checked ? "left-[22px]" : "left-0.5"}`} /></button></div>;
+function Toggle({ icon: Icon, title, detail, checked, onChange, disabled = false }) {
+  return <div className="flex items-center gap-3 rounded-md border border-border bg-muted/30 p-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10"><Icon className="h-4 w-4 text-primary" /></div><div className="min-w-0 flex-1"><p className="text-sm font-medium">{title}</p><p className="mt-0.5 text-[11px] text-muted-foreground">{detail}</p></div><button type="button" role="switch" aria-checked={checked} aria-label={title} disabled={disabled} onClick={() => onChange(!checked)} className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-wait disabled:opacity-60 ${checked ? "bg-primary" : "bg-muted"}`}><span className={`absolute top-0.5 h-5 w-5 rounded-full bg-background transition-all ${checked ? "left-[22px]" : "left-0.5"}`} /></button></div>;
 }
 function Row({ icon: Icon, title, detail, action, danger }) {
   return <div className={`flex flex-wrap items-center gap-3 rounded-md border p-3 ${danger ? "border-danger/30 bg-danger/10" : "border-border bg-muted/30"}`}><div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${danger ? "bg-danger/15" : "bg-primary/10"}`}><Icon className={`h-4 w-4 ${danger ? "text-danger" : "text-primary"}`} /></div><div className="min-w-0 flex-1"><p className="text-sm font-medium">{title}</p><p className="mt-0.5 text-[11px] text-muted-foreground">{detail}</p></div>{action}</div>;

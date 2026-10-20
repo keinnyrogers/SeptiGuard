@@ -29,7 +29,7 @@ class SeptiNotificationFactory extends Factory
                 'ticket_update',
                 'announcement',
             ]),
-            'channel' => fake()->randomElement(['fcm', 'email', 'sms']),
+            'channel' => fake()->randomElement(['in_app', 'email']),
             'is_read' => false,
             'is_sent' => false,
             'sent_at' => null,

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Activity, Bell, Bot, Copy, FileWarning, Filter, Home, Lightbulb,
@@ -7,7 +7,9 @@ import {
   Clock, Sparkles, CircleCheck,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
+import ResidentAvatar from "../components/ResidentAvatar.jsx";
 import ResidentComplaintPanel from "../components/ResidentComplaintPanel.jsx";
+import { fetchResidentComplaints } from "../api.js";
 
 /* ==================================================================
    SeptiGuard — My Complaints (Resident)
@@ -105,7 +107,7 @@ const NAV = [
   { icon: Activity,    label: "Monitoring", path: "/monitor" },
   { icon: Bot,         label: "Predict", path: "/predict" },
   { icon: FileWarning, label: "Complaints", path: "/complaints", active: true },
-  { icon: Wrench,      label: "Maintain", path: "/maintain" },
+  { icon: Wrench,      label: "Maintenance", path: "/maintain" },
   { icon: Bell,        label: "Alerts", path: "/alerts" },
   { icon: UserRound,   label: "Profile", path: "/profile" },
 ];
@@ -114,18 +116,33 @@ const PAGE_SIZE = 5;
 
 export default function Complaints() {
   const { user, logout } = useAuth();
+  const { token } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [selectedComplaint, setSelectedComplaint] = useState(null);
   const [complaintPanelOpen, setComplaintPanelOpen] = useState(false);
-  const complaints = user?.demo_mode ? SAMPLE_COMPLAINTS : EMPTY_COMPLAINTS;
+  const [realComplaints, setRealComplaints] = useState([]);
+  const [loading, setLoading] = useState(!user?.demo_mode);
+  const [loadError, setLoadError] = useState("");
+  const complaints = user?.demo_mode ? SAMPLE_COMPLAINTS : realComplaints;
   const [tab, setTab] = useState("all");
   const [query, setQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
   const [page, setPage] = useState(1);
 
-  const first = user?.name?.split(" ")[0] ?? "Resident";
   const soon = (name) => window.alert(`${name} will be connected in the next step.`);
   const signOut = async () => { await logout(); navigate("/"); };
+
+  useEffect(() => {
+    if (user?.demo_mode || !token) return undefined;
+    let active = true;
+    fetchResidentComplaints(token)
+      .then((items) => { if (active) setRealComplaints(items); })
+      .catch((error) => { if (active) setLoadError(error.message); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [token, user?.demo_mode]);
 
   /* ---------- API CALL — i-uncomment kapag ready na ang backend ----------
   useEffect(() => {
@@ -148,15 +165,17 @@ export default function Complaints() {
   const filtered = useMemo(() => {
     return complaints
       .filter((c) => tab === "all" || c.status === tab)
+      .filter((c) => categoryFilter === "" || c.category === categoryFilter)
       .filter((c) =>
         query.trim() === "" ||
         c.title.toLowerCase().includes(query.toLowerCase()) ||
         c.ticket_code.toLowerCase().includes(query.toLowerCase())
       );
-  }, [complaints, tab, query]);
+  }, [complaints, tab, categoryFilter, query]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const activeFilterCount = Number(categoryFilter !== "");
 
   const changeTab = (key) => { setTab(key); setPage(1); };
 
@@ -186,9 +205,7 @@ export default function Complaints() {
           ))}
         </nav>
         <div className="flex flex-col items-center gap-2 border-t border-border pt-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-primary text-[10px] font-semibold">
-            {first.slice(0, 2).toUpperCase()}
-          </div>
+          <ResidentAvatar />
           <button onClick={signOut} title="Sign out" className="p-2 text-muted-foreground hover:text-danger">
             <LogOut className="h-4 w-4" />
           </button>
@@ -218,6 +235,7 @@ export default function Complaints() {
         </header>
 
         <main className="mx-auto max-w-[1440px] space-y-5 p-4 sm:p-7">
+          {loadError && <div className="rounded-md border border-danger/40 bg-danger/10 p-3 text-xs text-danger">{loadError}</div>}
           <p className="text-xs text-muted-foreground">
             Track and manage your submitted concerns to the HOA
           </p>
@@ -258,20 +276,63 @@ export default function Complaints() {
                     className="w-40 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground sm:w-52"
                   />
                 </div>
-                <button
-                  onClick={() => soon("Filter")}
-                  className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground"
-                >
-                  <Filter className="h-3.5 w-3.5" />
-                  Filter
-                </button>
+                <div className="relative">
+                  <button
+                    type="button"
+                    aria-expanded={filterOpen}
+                    aria-controls="complaint-filters"
+                    onClick={() => setFilterOpen((value) => !value)}
+                    className={`flex items-center gap-2 rounded-md border px-3 py-2 text-xs ${
+                      activeFilterCount > 0
+                        ? "border-primary/40 bg-primary/10 text-primary"
+                        : "border-border bg-muted/40 text-muted-foreground"
+                    }`}
+                  >
+                    <Filter className="h-3.5 w-3.5" />
+                    Filter
+                    {activeFilterCount > 0 && <Badge>{activeFilterCount}</Badge>}
+                  </button>
+                  {filterOpen && (
+                    <div
+                      id="complaint-filters"
+                      className="absolute right-0 z-20 mt-2 w-64 space-y-3 rounded-lg border border-border bg-card p-4 shadow-xl"
+                    >
+                      <label className="block space-y-1.5 text-xs">
+                        <span className="font-medium">Category</span>
+                        <select
+                          value={categoryFilter}
+                          onChange={(event) => { setCategoryFilter(event.target.value); setPage(1); }}
+                          className="w-full rounded-md border border-border bg-background px-2.5 py-2 text-xs"
+                        >
+                          <option value="">All categories</option>
+                          {Object.entries(CATEGORY_META).map(([value, category]) => (
+                            <option key={value} value={value}>{category.label}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        disabled={activeFilterCount === 0}
+                        onClick={() => { setCategoryFilter(""); setPage(1); }}
+                        className="w-full rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Clear filters
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </section>
 
           {/* ---------------- COMPLAINT LIST ---------------- */}
           <div className="space-y-3">
-            {paged.length === 0 && (
+            {loading ? (
+              <div className="flex min-h-40 flex-col items-center justify-center rounded-lg border border-border bg-card p-8 text-center">
+                <span className="h-8 w-8 animate-spin rounded-full border-2 border-primary/25 border-t-primary" aria-hidden="true" />
+                <p className="mt-3 text-sm text-muted-foreground">Loading your complaints...</p>
+              </div>
+            ) : paged.length === 0 && (
               <div className="rounded-lg border border-border bg-card p-8 text-center">
                 <p className="text-sm text-muted-foreground">
                   {complaints.length === 0 ? "You have not submitted any complaints yet." : "No complaints match your current filters."}
@@ -357,6 +418,7 @@ export default function Complaints() {
         onClose={() => setComplaintPanelOpen(false)}
         categoryMeta={CATEGORY_META}
         statusMeta={STATUS_META}
+        token={token}
       />
     </div>
   );

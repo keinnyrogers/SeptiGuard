@@ -1,30 +1,42 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Wrench, CheckCircle2, AlertCircle } from "lucide-react";
 import SlidePanel from "./SlidePanel.jsx";
+import DatePicker from "./DatePicker.jsx";
+import { createResidentComplaint } from "../api.js";
 
 /* Request Maintenance slide-in panel (Resident → Maintain page).
-   Reuses the complaints system: category "septic_tank".
-   Simulated until the Laravel endpoint is connected. */
+   Maintenance requests are saved through the resident complaints API. */
 const TYPES = [
   { id: "pump_out",   label: "Full pump-out / desludging", note: "Routine cleaning of the tank",         priority: "medium" },
   { id: "inspection", label: "Inspection",                 note: "Check baffles, pipes, or the sensor",  priority: "low" },
   { id: "urgent",     label: "Urgent service",             note: "Odor, backup, or near overflow",       priority: "high" },
 ];
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
-export default function RequestMaintenancePanel({ open, onClose, lastMaintenance, nextDue }) {
+export default function RequestMaintenancePanel({ open, onClose, lastMaintenance, token, onSubmitted }) {
   const [type, setType] = useState("pump_out");
   const [date, setDate] = useState("");
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState("idle"); // idle | sending | sent
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (open) { setType("pump_out"); setDate(""); setNotes(""); setStatus("idle"); setError(""); }
-  }, [open]);
+  const close = () => {
+    setType("pump_out");
+    setDate("");
+    setNotes("");
+    setStatus("idle");
+    setError("");
+    onClose();
+  };
 
-  const submit = () => {
+  const submit = async () => {
     if (date && date < today()) return setError("Preferred date can't be in the past.");
     setError("");
     setStatus("sending");
@@ -38,8 +50,19 @@ export default function RequestMaintenancePanel({ open, onClose, lastMaintenance
       description: `Preferred date: ${date || "any"}. Notes: ${notes || "none"}`,
     }, { headers: { Authorization: `Bearer ${token}` } });
     ---------------------------------------------------------------------- */
-    void t;
-    setTimeout(() => setStatus("sent"), 700);
+    try {
+      await createResidentComplaint(token, {
+        category: "septic_tank",
+        priority: t.priority,
+        title: `Maintenance request: ${t.label}`,
+        description: `Preferred date: ${date || "Any available date"}. Notes: ${notes || "None"}`,
+      });
+      setStatus("sent");
+      onSubmitted?.();
+    } catch (submitError) {
+      setStatus("idle");
+      setError(submitError.message);
+    }
   };
 
   const sent = status === "sent";
@@ -47,17 +70,17 @@ export default function RequestMaintenancePanel({ open, onClose, lastMaintenance
   return (
     <SlidePanel
       open={open}
-      onClose={onClose}
+      onClose={close}
       eyebrow="Maintenance"
       eyebrowIcon={Wrench}
       title={sent ? "Request sent" : "Request Maintenance"}
       subtitle={sent ? "Your HOA administrator will contact you to confirm the schedule." : "Your HOA will coordinate with an accredited service provider."}
       footer={
         sent ? (
-          <button onClick={onClose} className="h-10 flex-1 rounded-md bg-primary text-sm font-medium text-primary-foreground">Done</button>
+          <button onClick={close} className="h-10 flex-1 rounded-md bg-primary text-sm font-medium text-primary-foreground">Done</button>
         ) : (
           <>
-            <button onClick={onClose} className="h-10 flex-1 rounded-md border border-border text-sm">Cancel</button>
+            <button onClick={close} className="h-10 flex-1 rounded-md border border-border text-sm">Cancel</button>
             <button onClick={submit} disabled={status === "sending"} className="h-10 flex-1 rounded-md bg-primary text-sm font-medium text-primary-foreground disabled:opacity-60">
               {status === "sending" ? "Sending..." : "Send Request"}
             </button>
@@ -70,20 +93,13 @@ export default function RequestMaintenancePanel({ open, onClose, lastMaintenance
           <CheckCircle2 className="h-10 w-10 text-success" />
           <p className="text-sm font-semibold">{TYPES.find((x) => x.id === type)?.label}</p>
           <p className="text-xs text-muted-foreground">Preferred date: {date || "Any available date"}</p>
-          <p className="text-[11px] text-muted-foreground">(sample — not yet connected to backend)</p>
         </div>
       ) : (
         <>
-          {(lastMaintenance || nextDue) && (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-md border border-border bg-muted/30 p-3">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Last service</p>
-                <p className="mt-1 text-sm font-semibold">{lastMaintenance ?? "—"}</p>
-              </div>
-              <div className="rounded-md border border-border bg-muted/30 p-3">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Next due</p>
-                <p className="mt-1 text-sm font-semibold text-primary">{nextDue ?? "—"}</p>
-              </div>
+          {lastMaintenance && (
+            <div className="rounded-md border border-border bg-muted/30 p-3">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Last recorded service</p>
+              <p className="mt-1 text-sm font-semibold">{lastMaintenance}</p>
             </div>
           )}
 
@@ -103,8 +119,12 @@ export default function RequestMaintenancePanel({ open, onClose, lastMaintenance
 
           <label className="block space-y-1.5">
             <span className="text-xs font-medium">Preferred date (optional)</span>
-            <input type="date" min={today()} value={date} onChange={(e) => setDate(e.target.value)}
-              className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm" />
+            <DatePicker
+              value={date}
+              onChange={setDate}
+              min={today()}
+              placeholder="Choose a preferred date"
+            />
           </label>
 
           <label className="block space-y-1.5">

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -6,94 +6,217 @@ import {
 } from "recharts";
 import {
   Activity, Battery, Bell, Bot, CalendarDays, FileWarning, Home,
-  LogOut, Menu, RefreshCw, Settings, ShieldCheck, TriangleAlert,
+  LogOut, Menu, RefreshCw, ShieldCheck, TriangleAlert,
   UserRound, Wifi, Wrench,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
+import { fetchResidentTankLatest } from "../api.js";
+import { subscribeToTank } from "../realtime.js";
 import ResidentEmptyPage from "../components/ResidentEmptyPage.jsx";
+import ResidentAvatar from "../components/ResidentAvatar.jsx";
+import NotificationPopover from "../components/NotificationPopover.jsx";
 
-/* ==================================================================
-   SeptiGuard — Real-Time Monitoring (Resident)
-   ------------------------------------------------------------------
-   REQUIRES:  npm install recharts
-   ------------------------------------------------------------------
-   Sample data lang muna ang laman (SAMPLE_DATA sa baba).
-   Kapag ready na ang Laravel API, may naka-comment na axios block
-   sa loob ng component — i-uncomment mo na lang.
-================================================================== */
+function formatHistoryDate(dateKey) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, day)));
+}
 
-const SAMPLE_DATA = {
-  fillLevel: 70,
-  sensorId: "IoT-Sensor-04A2",
-  online: true,
-  signal: 94,
-  battery: 87,
-  lastSync: "2s ago",
-  history: {
-    "7": [
-      { date: "May 6",  value: 55 }, { date: "May 7",  value: 58 },
-      { date: "May 8",  value: 61 }, { date: "May 9",  value: 64 },
-      { date: "May 10", value: 66 }, { date: "May 11", value: 68 },
-      { date: "May 12", value: 70 },
-    ],
-    "30": [
-      { date: "Apr 13", value: 22 }, { date: "Apr 18", value: 31 },
-      { date: "Apr 23", value: 39 }, { date: "Apr 28", value: 47 },
-      { date: "May 3",  value: 54 }, { date: "May 8",  value: 62 },
-      { date: "May 12", value: 70 },
-    ],
-    "90": [
-      { date: "Feb 12", value: 8  }, { date: "Feb 27", value: 18 },
-      { date: "Mar 14", value: 27 }, { date: "Mar 29", value: 36 },
-      { date: "Apr 13", value: 46 }, { date: "Apr 28", value: 58 },
-      { date: "May 12", value: 70 },
-    ],
-  },
-  rangeLabel: {
-    "7":  "May 6 – May 12, 2026",
-    "30": "Apr 13 – May 12, 2026",
-    "90": "Feb 12 – May 12, 2026",
-  },
-};
+function dateKeyFor(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function createSampleData() {
+  const today = new Date();
+  const formatDate = (date) => new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+  }).format(date);
+  const formatRangeDate = (date) => new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+  const historyFor = (span, values) => values.map((value, index) => {
+    const offset = Math.round(-span + (span * index) / (values.length - 1));
+    const date = new Date(today);
+    date.setDate(today.getDate() + offset);
+    return { date: formatDate(date), value };
+  });
+  const rangeFor = (span) => {
+    const start = new Date(today);
+    start.setDate(today.getDate() - span);
+    return `${formatRangeDate(start)} – ${formatRangeDate(today)}`;
+  };
+
+  return {
+    fillLevel: 70,
+    sensorId: "TNK-001",
+    online: true,
+    signal: 94,
+    battery: 87,
+    lastSync: "Demo sample",
+    history: {
+      "7": historyFor(6, [55, 58, 61, 64, 66, 68, 70]),
+      "30": historyFor(29, [22, 31, 39, 47, 54, 62, 70]),
+      "90": historyFor(89, [8, 18, 27, 36, 46, 58, 70]),
+    },
+    rangeLabel: {
+      "7": rangeFor(6),
+      "30": rangeFor(29),
+      "90": rangeFor(89),
+    },
+  };
+}
+
+const SAMPLE_DATA = createSampleData();
 
 const NAV = [
   { icon: Home,        label: "Dashboard", path: "/dashboard" },
   { icon: Activity,    label: "Monitoring", path: "/monitor", active: true },
   { icon: Bot,         label: "Predict", path: "/predict" },
   { icon: FileWarning, label: "Complaints", path: "/complaints" },
-  { icon: Wrench,      label: "Maintain", path: "/maintain" },
+  { icon: Wrench,      label: "Maintenance", path: "/maintain" },
   { icon: Bell,        label: "Alerts", path: "/alerts" },
   { icon: UserRound,   label: "Profile", path: "/profile" },
 ];
 
 /* Status thresholds — same as the paper */
 const THRESHOLDS = [
-  { key: "normal",   label: "Normal",   range: "0–60%",   dot: "bg-success", ring: "text-success", chip: "border-success/30 bg-success/10 text-success" },
-  { key: "warning",  label: "Warning",  range: "61–80%",  dot: "bg-warning", ring: "text-warning", chip: "border-warning/30 bg-warning/10 text-warning" },
-  { key: "critical", label: "Critical", range: "81–100%", dot: "bg-danger",  ring: "text-danger",  chip: "border-danger/30 bg-danger/10 text-danger" },
+  { key: "normal",   label: "Normal",   range: "0–69%",   dot: "bg-success", ring: "text-success", chip: "border-success/30 bg-success/10 text-success" },
+  { key: "warning",  label: "Warning",  range: "70–79%",  dot: "bg-warning", ring: "text-warning", chip: "border-warning/30 bg-warning/10 text-warning" },
+  { key: "critical", label: "Critical", range: "80–100%", dot: "bg-danger",  ring: "text-danger",  chip: "border-danger/30 bg-danger/10 text-danger" },
 ];
 
 const getStatusKey = (fill) =>
-  fill >= 81 ? "critical" : fill >= 61 ? "warning" : "normal";
+  fill >= 80 ? "critical" : fill >= 70 ? "warning" : "normal";
 
 export default function RealTimeMonitoring() {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [range, setRange] = useState("7");
-  const data = user?.demo_mode ? SAMPLE_DATA : null;
+  const [liveData, setLiveData] = useState(null);
+  const data = user?.demo_mode ? SAMPLE_DATA : liveData;
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(!user?.demo_mode);
+  const [loadError, setLoadError] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const first = user?.name?.split(" ")[0] ?? "Resident";
+  useEffect(() => {
+    if (user?.demo_mode || !token) return undefined;
+    let active = true;
+    fetchResidentTankLatest(token).then((result) => {
+      if (!active) return;
+      const reading = result?.reading;
+      const fillLevel = reading?.fill_level_percentage == null ? null : Number(reading.fill_level_percentage);
+      const measuredAt = reading?.measured_at ? new Date(reading.measured_at) : null;
+      const history = (result?.history ?? []).map((point) => ({
+        ...point,
+        date: formatHistoryDate(point.date_key),
+      }));
+      setLiveData({
+        deviceId: result?.device_id ?? null,
+        fillLevel,
+        sensorId: result?.device_id ?? "No device linked",
+        online: Boolean(measuredAt && measuredAt.getTime() >= Date.now() - 15 * 60 * 1000),
+        signal: null,
+        battery: null,
+        lastSync: measuredAt ? measuredAt.toLocaleString() : "No readings yet",
+        history,
+        rangeLabel: {
+          "7": "Recent readings",
+          "30": "Recent readings",
+          "90": "Recent readings",
+        },
+      });
+    }).catch(() => {
+      if (active) {
+        setLiveData(null);
+        setLoadError("Could not load your tank readings. Please try refreshing.");
+      }
+    }).finally(() => {
+      if (active) {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    });
+    return () => { active = false; };
+  }, [token, user?.demo_mode, refreshKey]);
+
+  useEffect(() => {
+    if (user?.demo_mode || !liveData?.deviceId) return undefined;
+
+    return subscribeToTank(liveData.deviceId, (reading) => {
+      const measuredAt = reading.measured_at ? new Date(reading.measured_at) : null;
+      const fillLevel = Number(reading.fill_level_percentage);
+      setLiveData((current) => ({
+        ...current,
+        fillLevel,
+        online: true,
+        lastSync: measuredAt ? measuredAt.toLocaleString() : "Just now",
+        history: (() => {
+          const dateKey = measuredAt ? dateKeyFor(measuredAt) : dateKeyFor(new Date());
+          const points = current?.history ?? [];
+          const existing = points.find((point) => point.date_key === dateKey);
+          if (existing) {
+            return points.map((point) => point.date_key === dateKey
+              ? {
+                  ...point,
+                  value: Number((((point.value * point.readings_count) + fillLevel) / (point.readings_count + 1)).toFixed(2)),
+                  readings_count: point.readings_count + 1,
+                }
+              : point);
+          }
+          return [...points, {
+            date_key: dateKey,
+            date: formatHistoryDate(dateKey),
+            value: fillLevel,
+            readings_count: 1,
+          }];
+        })(),
+      }));
+    });
+  }, [liveData?.deviceId, user?.demo_mode]);
+
   const soon = (name) => window.alert(`${name} will be connected in the next step.`);
   const signOut = async () => { await logout(); navigate("/"); };
 
-  if (!data) {
-    return <ResidentEmptyPage active="Monitoring" title="Real-Time Monitoring" description="Live readings and sensor status will appear here after the HOA links a sensor to your household." />;
+  if (loading) {
+    return <ResidentEmptyPage active="Monitoring" title="Real-Time Monitoring" description="" loading />;
   }
 
-  const statusKey = getStatusKey(data.fillLevel);
+  if (!data) {
+    return (
+      <ResidentEmptyPage
+        active="Monitoring"
+        title="Real-Time Monitoring"
+        emptyTitle={loadError ? "Could not load tank readings" : undefined}
+        description={loadError || "Live readings and sensor status will appear here after the HOA links a sensor to your household."}
+        actionLabel={loadError ? "Retry" : undefined}
+        onAction={loadError ? () => {
+          setLoadError("");
+          setLoading(true);
+          setRefreshKey((key) => key + 1);
+        } : undefined}
+      />
+    );
+  }
+
+  const statusKey = getStatusKey(data.fillLevel ?? 0);
   const statusMeta = THRESHOLDS.find((t) => t.key === statusKey);
+  const selectedHistory = Array.isArray(data.history)
+    ? (() => {
+        const cutoff = new Date();
+        cutoff.setUTCHours(0, 0, 0, 0);
+        cutoff.setUTCDate(cutoff.getUTCDate() - Number(range) + 1);
+        const cutoffKey = dateKeyFor(cutoff);
+        return data.history.filter((point) => point.date_key >= cutoffKey);
+      })()
+    : data.history[range];
 
   /* ---------- API CALL — i-uncomment kapag ready na ang backend ----------
   useEffect(() => {
@@ -108,7 +231,11 @@ export default function RealTimeMonitoring() {
 
   const handleRefresh = () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 800);
+    if (user?.demo_mode) {
+      window.setTimeout(() => setRefreshing(false), 500);
+      return;
+    }
+    setRefreshKey((key) => key + 1);
   };
 
   /* circular gauge math — same as Dashboard's ring (r=50) */
@@ -145,9 +272,7 @@ export default function RealTimeMonitoring() {
           ))}
         </nav>
         <div className="flex flex-col items-center gap-2 border-t border-border pt-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-primary text-[10px] font-semibold">
-            {first.slice(0, 2).toUpperCase()}
-          </div>
+          <ResidentAvatar />
           <button onClick={signOut} title="Sign out" className="p-2 text-muted-foreground hover:text-danger">
             <LogOut className="h-4 w-4" />
           </button>
@@ -175,9 +300,11 @@ export default function RealTimeMonitoring() {
               <RefreshCw className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${refreshing ? "animate-spin" : ""}`} />
               <span className="whitespace-nowrap">Refresh</span>
             </button>
-            <button onClick={() => soon("Settings")} className="rounded-md border border-border p-2">
-              <Settings className="h-4 w-4" />
-            </button>
+            <NotificationPopover
+              token={token}
+              demoMode={Boolean(user?.demo_mode)}
+              onViewAll={() => navigate("/alerts")}
+            />
           </div>
         </header>
 
@@ -264,7 +391,7 @@ export default function RealTimeMonitoring() {
                     {data.online ? "Connected" : "Disconnected"}
                   </p>
                   <p className="text-[10px] text-muted-foreground">
-                    {data.sensorId} · Signal {data.signal}%
+                    {data.sensorId} · Signal {data.signal == null ? "Not reported" : `${data.signal}%`}
                   </p>
                 </div>
               </div>
@@ -274,7 +401,7 @@ export default function RealTimeMonitoring() {
                   <Battery className="h-4 w-4" />
                   Battery
                 </span>
-                <span className="text-xs font-semibold">{data.battery}%</span>
+                <span className="text-xs font-semibold">{data.battery == null ? "Not reported" : `${data.battery}%`}</span>
               </div>
 
               <p className="mt-3 text-[10px] text-muted-foreground">Last sync {data.lastSync}</p>
@@ -308,8 +435,13 @@ export default function RealTimeMonitoring() {
             </div>
 
             <div className="mt-6 h-[240px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data.history[range]} margin={{ top: 10, right: 10, left: -18, bottom: 0 }}>
+              {selectedHistory.length === 0 ? (
+                <div className="flex h-full items-center justify-center rounded-md border border-dashed border-border text-sm text-muted-foreground">
+                  No readings have been collected for this period yet.
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={selectedHistory} margin={{ top: 10, right: 10, left: -18, bottom: 0 }}>
                   <defs>
                     <linearGradient id="fillGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#00E5FF" stopOpacity={0.35} />
@@ -332,8 +464,9 @@ export default function RealTimeMonitoring() {
                   />
                   <Area type="monotone" dataKey="value" stroke="#00E5FF" strokeWidth={2}
                         fill="url(#fillGrad)" dot={false} activeDot={{ r: 4, fill: "#00E5FF" }} />
-                </AreaChart>
-              </ResponsiveContainer>
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
             </div>
 
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">

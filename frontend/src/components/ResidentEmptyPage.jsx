@@ -2,22 +2,22 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Activity, ArrowRight, Bell, Bot, CircleGauge, FileWarning, Home, LogOut, Menu, ShieldCheck, UserRound, Wrench } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
+import ResidentAvatar from "./ResidentAvatar.jsx";
 
 const NAV = [
   { icon: Home, label: "Dashboard", path: "/dashboard" },
   { icon: Activity, label: "Monitoring", path: "/monitor" },
   { icon: Bot, label: "Predict", path: "/predict" },
   { icon: FileWarning, label: "Complaints", path: "/complaints" },
-  { icon: Wrench, label: "Maintain", path: "/maintain" },
+  { icon: Wrench, label: "Maintenance", path: "/maintain" },
   { icon: Bell, label: "Alerts", path: "/alerts" },
   { icon: UserRound, label: "Profile", path: "/profile" },
 ];
 
-export default function ResidentEmptyPage({ active, title, description, actionLabel, onAction }) {
-  const { user, logout } = useAuth();
+export default function ResidentEmptyPage({ active, title, description, emptyTitle, actionLabel, onAction, loading = false }) {
+  const { user, token, logout } = useAuth();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
-  const first = user?.name?.split(" ")[0] ?? "Resident";
 
   async function signOut() {
     await logout();
@@ -40,7 +40,7 @@ export default function ResidentEmptyPage({ active, title, description, actionLa
           ))}
         </nav>
         <div className="flex flex-col items-center gap-2 border-t border-border pt-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-primary text-[10px] font-semibold">{first.slice(0, 2).toUpperCase()}</div>
+          <ResidentAvatar />
           <button type="button" onClick={signOut} title="Sign out" className="p-2 text-muted-foreground hover:text-danger"><LogOut className="h-4 w-4" /></button>
         </div>
       </aside>
@@ -56,10 +56,20 @@ export default function ResidentEmptyPage({ active, title, description, actionLa
         </header>
         <main className="mx-auto max-w-[1440px] p-4 sm:p-7">
           <section className="flex min-h-72 flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card/50 px-6 py-12 text-center">
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary"><CircleGauge className="h-6 w-6" /></span>
-            <h2 className="mt-4 font-display text-lg font-semibold">{title === "Predictions" ? "No readings to forecast yet" : "No tank linked yet"}</h2>
-            <p className="mt-2 max-w-md text-sm text-muted-foreground">{description}</p>
-            {actionLabel && onAction && (
+            {loading ? (
+              <>
+                <span className="h-10 w-10 animate-spin rounded-full border-2 border-primary/25 border-t-primary" aria-hidden="true" />
+                <h2 className="mt-4 font-display text-lg font-semibold">Loading {title.toLowerCase()}...</h2>
+                <p className="mt-2 text-sm text-muted-foreground">Getting the latest information for your account.</p>
+              </>
+            ) : (
+              <>
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary"><CircleGauge className="h-6 w-6" /></span>
+                <h2 className="mt-4 font-display text-lg font-semibold">{emptyTitle ?? (title === "Predictions" ? "No readings to forecast yet" : "No tank linked yet")}</h2>
+                <p className="mt-2 max-w-md text-sm text-muted-foreground">{description}</p>
+              </>
+            )}
+            {!loading && actionLabel && onAction && (
               <button type="button" onClick={onAction} className="mt-5 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
                 {actionLabel}
                 <ArrowRight className="h-4 w-4" />

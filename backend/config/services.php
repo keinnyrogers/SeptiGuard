@@ -39,4 +39,18 @@ return [
         'api_key' => env('SENSOR_API_KEY'),
     ],
 
+    'prediction' => [
+        'url' => env('PREDICTION_SERVICE_URL'),
+        'api_key' => env('PREDICTION_SERVICE_API_KEY'),
+        'timeout' => (int) env('PREDICTION_SERVICE_TIMEOUT', 5),
+    ],
+
+    'mqtt' => [
+        'host' => env('MQTT_HOST', 'broker.hivemq.com'),
+        'port' => (int) env('MQTT_PORT', 1883),
+        'topic_prefix' => env('MQTT_TOPIC_PREFIX', 'septiguard-test-aggin'),
+        'topic' => env('MQTT_TOPIC', 'septiguard-test-aggin/tanks/+/readings'),
+        'tls' => filter_var(env('MQTT_TLS', false), FILTER_VALIDATE_BOOLEAN),
+    ],
+
 ];

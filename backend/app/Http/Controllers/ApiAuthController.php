@@ -25,8 +25,14 @@ class ApiAuthController extends Controller
         }
 
         if ($user->account_status !== 'approved') {
+            $message = match ($user->account_status) {
+                'inactive' => 'This account has been deactivated by the HOA administrator. Please contact the HOA for assistance.',
+                'rejected' => 'This account registration was rejected by the HOA administrator.',
+                default => 'Your account is awaiting HOA approval.',
+            };
+
             return response()->json([
-                'message' => 'Your account is awaiting HOA approval.',
+                'message' => $message,
                 'status' => $user->account_status,
             ], 403);
         }

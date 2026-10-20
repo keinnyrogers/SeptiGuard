@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   BarChart3,
@@ -18,6 +18,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { SAMPLE_DATA, CATEGORY_LABELS, STATUS_LABELS } from "@/data/complaints";
 import { SAMPLE_RESIDENTS } from "@/data/residents";
 import { DATE_RANGES, REPORT_TYPES, SAMPLE_REPORTS } from "@/data/reports";
+import { fetchAdminReports } from "../api.js";
 
 const CATEGORY_KEYS = ["septic_tank", "garbage", "street_lights", "road_damage", "noise", "water_supply", "other"];
 const STATUS_KEYS = ["pending", "in_progress", "resolved"];
@@ -84,7 +85,7 @@ function DonutChart({ counts }) {
 }
 
 export default function AdminReports() {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [dateRange, setDateRange] = useState("180");
@@ -130,6 +131,17 @@ export default function AdminReports() {
     await logout();
     navigate("/");
   };
+
+  if (!user?.demo_mode) {
+    return <LiveAdminReports
+      token={token}
+      user={user}
+      menuOpen={menuOpen}
+      setMenuOpen={setMenuOpen}
+      navigate={navigate}
+      signOut={signOut}
+    />;
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -248,6 +260,210 @@ export default function AdminReports() {
             </table>
           </div>
         </section>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function exportLiveReportCsv(type, data) {
+  const rows = [["Section", "Item", "Value", "Details"]];
+  const addSummary = () => {
+    Object.entries(data.summary).forEach(([key, value]) => {
+      rows.push(["Summary", key.replaceAll("_", " "), value ?? "Unavailable", ""]);
+    });
+  };
+  const addComplaintBreakdown = () => {
+    rows.push(["Complaints", "Complaint record detail", "All matched records", "Category and status totals cover the full selected period."]);
+    Object.entries(data.category_counts).forEach(([key, value]) => {
+      rows.push(["Complaints by category", CATEGORY_LABELS[key] ?? key, value, ""]);
+    });
+    Object.entries(data.status_counts).forEach(([key, value]) => {
+      rows.push(["Complaints by status", STATUS_LABELS[key] ?? key, value, ""]);
+    });
+    data.complaint_records.forEach((complaint) => {
+      rows.push([
+        "Complaint",
+        complaint.ticket_code,
+        STATUS_LABELS[complaint.status] ?? complaint.status,
+        `${complaint.title}; ${CATEGORY_LABELS[complaint.category] ?? complaint.category}; ${complaint.resident_name}; ${formatDate(complaint.filed_at)}`,
+      ]);
+    });
+  };
+  const addTankOperations = () => {
+    data.tanks.forEach((tank) => {
+      rows.push([
+        "Tank",
+        tank.device_id,
+        tank.fill_level == null ? "No reading" : `${tank.fill_level}%`,
+        `${tank.resident_name ?? "No resident"}; ${tank.readings_in_period} readings in period; last reading ${tank.last_reading_at ? formatDate(tank.last_reading_at) : "never"}`,
+      ]);
+    });
+  };
+
+  if (type === "All" || type === "Analytics") addSummary();
+  if (type === "All" || type === "Analytics" || type === "Complaints") addComplaintBreakdown();
+  if (type === "All" || type === "Analytics" || type === "Operations") addTankOperations();
+
+  const escapeCell = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+  const content = rows.map((row) => row.map(escapeCell).join(",")).join("\r\n");
+  const url = URL.createObjectURL(new Blob([content], { type: "text/csv;charset=utf-8" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `septiguard-${type.toLowerCase()}-report.csv`;
+  anchor.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function LiveAdminReports({ token, user, menuOpen, setMenuOpen, navigate, signOut }) {
+  const [dateRange, setDateRange] = useState("180");
+  const [reportType, setReportType] = useState("All");
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [retryKey, setRetryKey] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    fetchAdminReports(token, dateRange)
+      .then((report) => { if (active) setData(report); })
+      .catch((requestError) => { if (active) setError(requestError.message); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [token, dateRange, retryKey]);
+
+  const summary = data?.summary;
+  const categories = data?.category_counts ?? {};
+  const statuses = data?.status_counts ?? {};
+  const maxCategory = Math.max(...Object.values(categories), 1);
+  const totalComplaints = Object.values(statuses).reduce((sum, count) => sum + count, 0);
+  const liveStats = [
+    { label: "Complaints Filed", value: summary?.complaints_filed ?? "—", sub: `Selected period · ${dateRange === "all" ? "All time" : `Last ${dateRange} days`}`, icon: FileBarChart, chip: "bg-primary/15 text-primary" },
+    { label: "Open Complaints", value: summary?.open_complaints ?? "—", sub: "Current pending or in progress", icon: CircleAlert, chip: "bg-danger/15 text-danger" },
+    { label: "Active Residents", value: summary?.active_residents ?? "—", sub: "Approved accounts", icon: BarChart3, chip: "bg-primary/15 text-primary" },
+    { label: "Average Tank Fill", value: summary?.average_fill == null ? "—" : `${summary.average_fill}%`, sub: `Latest readings · ${summary?.tanks_with_readings ?? 0} tanks with data`, icon: Wrench, chip: "bg-warning/15 text-warning" },
+  ];
+  const rangeOptions = DATE_RANGES.map((range) => ({ value: range.value, label: `Date Range: ${range.label}` }));
+  const typeOptions = ["All", "Analytics", "Complaints", "Operations"].map((type) => ({ value: type, label: `Report Type: ${type}` }));
+
+  return (
+    <div className="min-h-screen bg-background">
+      <AdminSidebar open={menuOpen} setOpen={setMenuOpen} navigate={navigate} user={user} active="Reports" signOut={signOut} />
+      <main className="min-w-0 flex-1 lg:ml-52">
+        <header className="flex min-h-20 items-center gap-3 border-b border-border px-4 py-4 sm:px-7">
+          <button type="button" onClick={() => setMenuOpen(true)} aria-label="Open menu" className="shrink-0 rounded-md border border-border p-2 lg:hidden"><Menu className="h-4 w-4" /></button>
+          <div>
+            <p className="text-[10px] text-muted-foreground sm:text-xs">Admin Portal › Reports</p>
+            <h1 className="mt-1 font-display text-lg font-bold sm:text-xl">Reports &amp; Analytics</h1>
+          </div>
+        </header>
+        <div className="px-5 py-6 md:px-8">
+          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <p className="text-sm text-muted-foreground">Live community data · Tank average uses each connected tank’s latest reading.</p>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <label className="relative">
+                <span className="sr-only">Date Range</span>
+                <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <ThemedSelect value={dateRange} onChange={(value) => { setDateRange(value); setLoading(true); setError(""); }} options={rangeOptions} className="w-full sm:w-48" />
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              </label>
+              <label className="relative">
+                <span className="sr-only">Report Type</span>
+                <SlidersHorizontal className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <ThemedSelect value={reportType} onChange={setReportType} options={typeOptions} className="w-full sm:w-52" />
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              </label>
+              <button type="button" disabled={!data || loading} onClick={() => exportLiveReportCsv(reportType, data)} className="flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">
+                <Download className="h-4 w-4" /> Export CSV
+              </button>
+            </div>
+          </div>
+
+          {error && <div role="alert" className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-md border border-danger/30 bg-danger/10 p-3 text-sm text-danger"><span>{error}</span><button type="button" onClick={() => { setLoading(true); setError(""); setRetryKey((key) => key + 1); }} className="font-semibold underline">Retry</button></div>}
+          {loading && <div className="mt-5 rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">Loading live report data...</div>}
+
+          {!loading && data && (
+            <>
+              {(reportType === "All" || reportType === "Analytics") && (
+                <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  {liveStats.map((stat) => (
+                    <article key={stat.label} className="rounded-lg border border-border bg-card p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="text-sm text-muted-foreground">{stat.label}</span>
+                        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${stat.chip}`}><stat.icon className="h-4 w-4" /></span>
+                      </div>
+                      <p className="mt-3 font-display text-3xl font-bold">{stat.value}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{stat.sub}</p>
+                    </article>
+                  ))}
+                </div>
+              )}
+
+              {(reportType === "All" || reportType === "Analytics" || reportType === "Complaints") && (
+                <div className="mt-6 grid gap-5 xl:grid-cols-[1.25fr_1fr]">
+                  <section className="rounded-lg border border-border bg-card p-5">
+                    <h2 className="text-base font-semibold">Complaints by Category</h2>
+                    <p className="mt-1 text-xs text-muted-foreground">Complaints filed during the selected period</p>
+                    <div className="mt-5 space-y-3">
+                      {CATEGORY_KEYS.map((key) => (
+                        <div key={key} className="grid grid-cols-[96px_1fr_24px] items-center gap-3 sm:grid-cols-[120px_1fr_28px]">
+                          <span className="truncate text-xs">{CATEGORY_LABELS[key]}</span>
+                          <div className="h-5 overflow-hidden rounded bg-muted"><div className="h-full min-w-0 rounded bg-primary" style={{ width: `${(categories[key] / maxCategory) * 100}%` }} /></div>
+                          <span className="text-right text-xs font-medium">{categories[key]}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                  <section className="rounded-lg border border-border bg-card p-5">
+                    <h2 className="text-base font-semibold">Complaint Status Breakdown</h2>
+                    <p className="mt-1 text-xs text-muted-foreground">Current status of complaints filed during the selected period</p>
+                    <div className="mt-6 flex flex-col items-center justify-center gap-6 sm:flex-row">
+                      <DonutChart counts={statuses} />
+                      <div className="w-full max-w-xs space-y-3">
+                        {STATUS_KEYS.map((key) => {
+                          const percent = totalComplaints ? Math.round((statuses[key] / totalComplaints) * 100) : 0;
+                          return <div key={key} className="grid grid-cols-[1fr_auto_auto] items-center gap-3 text-sm"><span className="flex items-center gap-2"><span className={`h-2.5 w-2.5 rounded-full ${key === "pending" ? "bg-danger" : key === "in_progress" ? "bg-warning" : "bg-success"}`} />{STATUS_LABELS[key]}</span><strong>{statuses[key]}</strong><span className="w-9 text-right text-xs text-muted-foreground">{percent}%</span></div>;
+                        })}
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              )}
+
+              {(reportType === "All" || reportType === "Analytics" || reportType === "Operations") && (
+                <section className="mt-6 overflow-hidden rounded-lg border border-border bg-card">
+                  <div className="p-5">
+                    <h2 className="text-base font-semibold">Tank Operations</h2>
+                    <p className="mt-1 text-xs text-muted-foreground">{summary.tank_readings} readings in selected period · current levels shown per connected tank</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[620px] text-sm">
+                      <thead><tr className="border-y border-border text-left text-[11px] uppercase text-muted-foreground"><th className="px-5 py-3 font-medium">Device</th><th className="px-5 py-3 font-medium">Resident</th><th className="px-5 py-3 font-medium">Current fill</th><th className="px-5 py-3 font-medium">Readings</th><th className="px-5 py-3 font-medium">Last reading</th></tr></thead>
+                      <tbody>
+                        {data.tanks.map((tank) => <tr key={tank.device_id} className="border-b border-border last:border-0"><td className="px-5 py-4 font-mono text-xs">{tank.device_id}</td><td className="px-5 py-4">{tank.resident_name ?? "—"}</td><td className="px-5 py-4">{tank.fill_level == null ? "No readings" : `${tank.fill_level}%`}</td><td className="px-5 py-4">{tank.readings_in_period}</td><td className="px-5 py-4 text-muted-foreground">{tank.last_reading_at ? formatDate(tank.last_reading_at) : "Never"}</td></tr>)}
+                        {data.tanks.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-sm text-muted-foreground">No connected tanks for approved residents.</td></tr>}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              )}
+
+              {(reportType === "All" || reportType === "Complaints") && (
+                <section className="mt-6 overflow-hidden rounded-lg border border-border bg-card">
+                  <div className="p-5"><h2 className="text-base font-semibold">Recent Complaints</h2><p className="mt-1 text-xs text-muted-foreground">Latest 10 complaint records in the selected period</p></div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[620px] text-sm">
+                      <thead><tr className="border-y border-border text-left text-[11px] uppercase text-muted-foreground"><th className="px-5 py-3 font-medium">Ticket</th><th className="px-5 py-3 font-medium">Complaint</th><th className="px-5 py-3 font-medium">Category</th><th className="px-5 py-3 font-medium">Resident</th><th className="px-5 py-3 font-medium">Status</th><th className="px-5 py-3 font-medium">Filed</th></tr></thead>
+                      <tbody>
+                        {data.recent_complaints.map((complaint) => <tr key={complaint.ticket_code} className="border-b border-border last:border-0"><td className="px-5 py-4 font-mono text-xs">{complaint.ticket_code}</td><td className="px-5 py-4">{complaint.title}</td><td className="px-5 py-4">{CATEGORY_LABELS[complaint.category] ?? complaint.category}</td><td className="px-5 py-4">{complaint.resident_name}</td><td className="px-5 py-4">{STATUS_LABELS[complaint.status] ?? complaint.status}</td><td className="px-5 py-4 text-muted-foreground">{formatDate(complaint.filed_at)}</td></tr>)}
+                        {data.recent_complaints.length === 0 && <tr><td colSpan={6} className="p-8 text-center text-sm text-muted-foreground">No complaints filed in this period.</td></tr>}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              )}
+            </>
+          )}
         </div>
       </main>
     </div>

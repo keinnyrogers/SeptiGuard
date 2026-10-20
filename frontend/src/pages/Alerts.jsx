@@ -1,11 +1,18 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { formatDistanceToNow } from "date-fns";
 import {
   Activity, Bell, BellOff, Bot, CheckCheck, CircleAlert, CircleCheck,
   FileWarning, Home, Info, LogOut, Menu, Search, ShieldCheck,
   SlidersHorizontal, TriangleAlert, UserRound, Wrench, X,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
+import ResidentAvatar from "../components/ResidentAvatar.jsx";
+import {
+  fetchResidentNotifications,
+  markResidentNotificationRead,
+  markResidentNotificationsRead,
+} from "../api.js";
 
 /* ==================================================================
    SeptiGuard — Alerts / Notifications (Resident)
@@ -14,7 +21,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 
      type:    critical_alert | warning_alert | predictive_alert |
               ticket_update | announcement
-     channel: fcm | email | sms
+     channel: in_app (external delivery rows are filtered out)
      is_read: boolean
 
    Tabs:
@@ -58,10 +65,24 @@ const NAV = [
   { icon: Activity,    label: "Monitoring", path: "/monitor" },
   { icon: Bot,         label: "Predict", path: "/predict" },
   { icon: FileWarning, label: "Complaints", path: "/complaints" },
-  { icon: Wrench,      label: "Maintain", path: "/maintain" },
+  { icon: Wrench,      label: "Maintenance", path: "/maintain" },
   { icon: Bell,        label: "Alerts", path: "/alerts", active: true },
   { icon: UserRound,   label: "Profile", path: "/profile" },
 ];
+
+const sampleTimestamp = (minutesAgo) => {
+  const createdAt = new Date(Date.now() - minutesAgo * 60 * 1000);
+  return {
+    created_at: createdAt.toISOString(),
+    time: formatDistanceToNow(createdAt, { addSuffix: true }),
+  };
+};
+const sampleDesludgingDate = new Date();
+sampleDesludgingDate.setDate(sampleDesludgingDate.getDate() + 10);
+const formattedDesludgingDate = new Intl.DateTimeFormat(undefined, {
+  month: "long",
+  day: "numeric",
+}).format(sampleDesludgingDate);
 
 /* ======================= SAMPLE DATA (temporary) =======================
    Palitan ng axios.get("/api/notifications") kapag ready na. Ang
@@ -73,7 +94,7 @@ const SAMPLE_NOTIFICATIONS = [
     title: "Critical: Tank approaching overflow",
     message: "Your septic tank has reached 82% capacity. Schedule a pump-out service within the next 5 days to avoid overflow.",
     action: { label: "Schedule now", to: "/maintain" },
-    time: "12 min ago",
+    ...sampleTimestamp(12),
     group: "Today",
     is_read: false,
   },
@@ -83,7 +104,7 @@ const SAMPLE_NOTIFICATIONS = [
     title: "Rising fill rate detected",
     message: "Your tank's fill rate increased 18% compared to last week's average, based on recent sensor readings. Consider checking for unusual usage.",
     action: { label: "View report", to: "/monitor" },
-    time: "1 hour ago",
+    ...sampleTimestamp(60),
     group: "Today",
     is_read: false,
   },
@@ -93,7 +114,7 @@ const SAMPLE_NOTIFICATIONS = [
     title: "Prediction updated",
     message: "Based on your recent readings, your tank is expected to reach the critical level (80%) in about 14 days.",
     action: { label: "See prediction", to: "/predict" },
-    time: "3 hours ago",
+    ...sampleTimestamp(180),
     group: "Today",
     is_read: false,
   },
@@ -103,7 +124,7 @@ const SAMPLE_NOTIFICATIONS = [
     title: "Complaint #CMP-0131 resolved",
     message: "Your complaint about missed garbage collection has been marked as resolved by the HOA.",
     action: { label: "View complaint", to: "/complaints" },
-    time: "6 hours ago",
+    ...sampleTimestamp(360),
     group: "Today",
     is_read: true,
   },
@@ -113,7 +134,7 @@ const SAMPLE_NOTIFICATIONS = [
     title: "Complaint #CMP-0138 in progress",
     message: "Officer Mark R. has been assigned to your pothole complaint near the clubhouse entrance.",
     action: { label: "View complaint", to: "/complaints" },
-    time: "Yesterday",
+    ...sampleTimestamp(24 * 60),
     group: "Earlier",
     is_read: true,
   },
@@ -121,27 +142,71 @@ const SAMPLE_NOTIFICATIONS = [
     id: 6,
     type: "announcement",
     title: "Scheduled desludging — Blk 12 area",
-    message: "The HOA has scheduled a community desludging drive for Blk 12 residents on May 20. No action needed unless notified individually.",
+    message: `The HOA has scheduled a community desludging drive for Blk 12 residents on ${formattedDesludgingDate}. No action needed unless notified individually.`,
     action: null,
-    time: "2 days ago",
+    ...sampleTimestamp(2 * 24 * 60),
     group: "Earlier",
     is_read: true,
   },
 ];
-const EMPTY_NOTIFICATIONS = [];
-
 export default function Alerts() {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [sampleNotifications, setSampleNotifications] = useState(SAMPLE_NOTIFICATIONS);
-  const notifications = user?.demo_mode ? sampleNotifications : EMPTY_NOTIFICATIONS;
+  const [realNotifications, setRealNotifications] = useState([]);
+  const [loading, setLoading] = useState(!user?.demo_mode && Boolean(token));
+  const [loadError, setLoadError] = useState(
+    !user?.demo_mode && !token ? "Your session is unavailable. Please sign in again." : "",
+  );
+  const [actionError, setActionError] = useState("");
+  const [isMarkingRead, setIsMarkingRead] = useState(false);
+  const [dismissedIds, setDismissedIds] = useState(() => new Set());
+  const [now] = useState(() => Date.now());
+  const notifications = user?.demo_mode ? sampleNotifications : realNotifications;
+  const visibleNotifications = useMemo(
+    () => notifications.filter((item) => !dismissedIds.has(item.id)),
+    [notifications, dismissedIds],
+  );
   const [tab, setTab] = useState("all");
   const [query, setQuery] = useState("");
 
-  const first = user?.name?.split(" ")[0] ?? "Resident";
   const soon = (name) => window.alert(`${name} will be connected in the next step.`);
   const signOut = async () => { await logout(); navigate("/"); };
+
+  useEffect(() => {
+    if (user?.demo_mode || !token) return undefined;
+    let active = true;
+    const load = () => fetchResidentNotifications(token).then((items) => {
+      if (active) {
+        setRealNotifications(items.map((item) => ({
+          ...item,
+          action: item.type === "ticket_update"
+            ? { label: "View complaint", to: "/complaints" }
+            : ["critical_alert", "warning_alert"].includes(item.type)
+              ? { label: "View tank", to: "/monitor" }
+              : item.type === "predictive_alert"
+                ? { label: "View prediction", to: "/predict" }
+                : null,
+          time: item.created_at && !Number.isNaN(new Date(item.created_at).getTime())
+            ? formatDistanceToNow(new Date(item.created_at), { addSuffix: true })
+            : "Recently",
+          group: "Recent",
+        })));
+        setLoadError("");
+      }
+    }).catch((error) => {
+      if (active) setLoadError(error.message);
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    load();
+    const interval = window.setInterval(load, 30000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [token, user?.demo_mode]);
 
   /* ---------- API CALL — i-uncomment kapag ready na ang backend ----------
   useEffect(() => {
@@ -154,23 +219,29 @@ export default function Alerts() {
   }, []);
   ---------------------------------------------------------------------- */
 
-  const counts = useMemo(() => ({
-    unread:   notifications.filter((n) => !n.is_read).length,
-    critical: notifications.filter((n) => n.type === "critical_alert").length,
-    warning:  notifications.filter((n) => n.type === "warning_alert").length,
-    thisWeek: notifications.length, // sample lang; sa totoo, i-filter by date range
-  }), [notifications]);
+  const counts = useMemo(() => {
+    const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
+    return {
+      unread: visibleNotifications.filter((n) => !n.is_read).length,
+      critical: visibleNotifications.filter((n) => n.type === "critical_alert").length,
+      warning: visibleNotifications.filter((n) => n.type === "warning_alert").length,
+      thisWeek: visibleNotifications.filter((n) => {
+        const createdAt = new Date(n.created_at).getTime();
+        return Number.isFinite(createdAt) && createdAt >= weekAgo && createdAt <= now;
+      }).length,
+    };
+  }, [visibleNotifications, now]);
 
   const tabCounts = useMemo(() => ({
-    all:      notifications.length,
-    critical: notifications.filter((n) => n.type === "critical_alert").length,
-    warning:  notifications.filter((n) => n.type === "warning_alert").length,
-    info:     notifications.filter((n) => n.type === "predictive_alert" || n.type === "announcement").length,
-    updates:  notifications.filter((n) => n.type === "ticket_update").length,
-  }), [notifications]);
+    all:      visibleNotifications.length,
+    critical: visibleNotifications.filter((n) => n.type === "critical_alert").length,
+    warning:  visibleNotifications.filter((n) => n.type === "warning_alert").length,
+    info:     visibleNotifications.filter((n) => n.type === "predictive_alert" || n.type === "announcement").length,
+    updates:  visibleNotifications.filter((n) => n.type === "ticket_update").length,
+  }), [visibleNotifications]);
 
   const filtered = useMemo(() => {
-    return notifications
+    return visibleNotifications
       .filter((n) => {
         if (tab === "all") return true;
         if (tab === "critical") return n.type === "critical_alert";
@@ -184,7 +255,7 @@ export default function Alerts() {
         n.title.toLowerCase().includes(query.toLowerCase()) ||
         n.message.toLowerCase().includes(query.toLowerCase())
       );
-  }, [notifications, tab, query]);
+  }, [visibleNotifications, tab, query]);
 
   const grouped = useMemo(() => {
     const groups = {};
@@ -194,19 +265,39 @@ export default function Alerts() {
     return groups;
   }, [filtered]);
 
-  const markAllRead = () => {
-    setSampleNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-    /* axios.post("/api/notifications/mark-all-read") kapag ready */
+  const markAllRead = async () => {
+    setActionError("");
+    setIsMarkingRead(true);
+    if (user?.demo_mode) {
+      setSampleNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    } else {
+      try {
+        await markResidentNotificationsRead(token);
+        setRealNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      } catch (error) {
+        setActionError(error.message);
+      }
+    }
+    setIsMarkingRead(false);
   };
 
   const dismiss = (id) => {
-    setSampleNotifications((prev) => prev.filter((n) => n.id !== id));
-    /* client-side lang muna — walang dismissed_at column pa sa DB */
+    setDismissedIds((previous) => new Set(previous).add(id));
   };
 
-  const openAction = (n) => {
+  const openAction = async (n) => {
     if (!n.is_read) {
-      setSampleNotifications((prev) => prev.map((x) => x.id === n.id ? { ...x, is_read: true } : x));
+      if (user?.demo_mode) {
+        setSampleNotifications((prev) => prev.map((x) => x.id === n.id ? { ...x, is_read: true } : x));
+      } else {
+        try {
+          await markResidentNotificationRead(token, n.id);
+          setRealNotifications((prev) => prev.map((x) => x.id === n.id ? { ...x, is_read: true } : x));
+        } catch (error) {
+          setActionError(error.message);
+          return;
+        }
+      }
     }
     if (n.action?.to) navigate(n.action.to);
   };
@@ -248,9 +339,7 @@ export default function Alerts() {
           ))}
         </nav>
         <div className="flex flex-col items-center gap-2 border-t border-border pt-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-primary text-[10px] font-semibold">
-            {first.slice(0, 2).toUpperCase()}
-          </div>
+          <ResidentAvatar />
           <button onClick={signOut} title="Sign out" className="p-2 text-muted-foreground hover:text-danger">
             <LogOut className="h-4 w-4" />
           </button>
@@ -272,10 +361,11 @@ export default function Alerts() {
           </div>
           <button
             onClick={markAllRead}
+            disabled={isMarkingRead}
             className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
           >
             <CheckCheck className="h-3.5 w-3.5" />
-            Mark all as read
+            {isMarkingRead ? "Marking read..." : "Mark all as read"}
           </button>
         </header>
 
@@ -283,6 +373,11 @@ export default function Alerts() {
           <p className="text-xs text-muted-foreground">
             Stay updated on your tank, complaints, and HOA announcements
           </p>
+          {(loadError || actionError) && (
+            <p role="alert" className="rounded-md border border-danger/30 bg-danger/10 p-3 text-xs text-danger">
+              {loadError || actionError}
+            </p>
+          )}
 
           {/* ---------------- SUMMARY CARDS ---------------- */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -334,7 +429,12 @@ export default function Alerts() {
           </section>
 
           {/* ---------------- NOTIFICATION LIST ---------------- */}
-          {Object.keys(grouped).length === 0 ? (
+          {loading ? (
+            <div className="flex min-h-40 flex-col items-center justify-center rounded-lg border border-border bg-card p-10 text-center">
+              <span className="h-8 w-8 animate-spin rounded-full border-2 border-primary/25 border-t-primary" aria-hidden="true" />
+              <p className="mt-3 text-sm text-muted-foreground">Loading your alerts...</p>
+            </div>
+          ) : loadError ? null : Object.keys(grouped).length === 0 ? (
             <div className="flex flex-col items-center gap-2 rounded-lg border border-border bg-card p-10 text-center">
               <BellOff className="h-6 w-6 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">No notifications found.</p>
@@ -375,12 +475,21 @@ export default function Alerts() {
                               {n.action.label} →
                             </button>
                           )}
+                          {!n.action && !n.is_read && (
+                            <button
+                              onClick={() => openAction(n)}
+                              className="font-medium text-primary hover:underline"
+                            >
+                              Mark as read
+                            </button>
+                          )}
                         </div>
                       </div>
 
                       <button
                         onClick={() => dismiss(n.id)}
-                        aria-label="Dismiss notification"
+                        aria-label="Hide notification"
+                        title="Hide from this list until you reload"
                         className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                       >
                         <X className="h-3.5 w-3.5" />

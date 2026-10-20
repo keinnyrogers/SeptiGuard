@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { X, MapPin, CalendarDays, UserRound, MessageSquareText, Clock, ImageIcon } from "lucide-react";
+import ComplaintAttachment from "@/components/ComplaintAttachment";
 
 /* ==================================================================
    SeptiGuard — Resident Complaint Slide-in Panel (read-only)
@@ -12,7 +13,7 @@ import { X, MapPin, CalendarDays, UserRound, MessageSquareText, Clock, ImageIcon
      statusMeta   – STATUS_META map from Complaints page
 ================================================================== */
 
-export default function ResidentComplaintPanel({ complaint, open, onClose, categoryMeta, statusMeta }) {
+export default function ResidentComplaintPanel({ complaint, open, onClose, categoryMeta, statusMeta, token }) {
   // keep last complaint rendered during the slide-out animation
   const [shown, setShown] = useState(complaint);
   useEffect(() => {
@@ -92,6 +93,7 @@ export default function ResidentComplaintPanel({ complaint, open, onClose, categ
                 <Meta icon={CalendarDays} label="Filed" value={c.filed_at} />
                 <Meta icon={MapPin} label="Location" value={c.location || "—"} />
                 <Meta icon={UserRound} label="Assigned to" value={c.assigned_to || "Pending assignment"} />
+                {c.scheduled_for && <Meta icon={CalendarDays} label="Scheduled service" value={new Date(`${c.scheduled_for}T00:00:00`).toLocaleDateString()} />}
                 <Meta icon={Clock} label="Resolved" value={c.resolved_at || "—"} />
               </dl>
 
@@ -105,9 +107,7 @@ export default function ResidentComplaintPanel({ complaint, open, onClose, categ
                   <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     <ImageIcon className="h-3.5 w-3.5" /> Attached photo
                   </h3>
-                  <a href={c.photo_url} target="_blank" rel="noreferrer">
-                    <img src={c.photo_url} alt="Complaint attachment" className="max-h-60 w-full rounded-lg border border-border object-cover" />
-                  </a>
+                  <ComplaintAttachment key={c.photo_url} token={token} photoUrl={c.photo_url} />
                 </section>
               )}
 

@@ -109,12 +109,12 @@ export default function Register() {
         <div className="relative z-10 flex items-center justify-between text-xs text-muted-foreground">
           <span>© 2026 Broadway Hagdan Loob HOA</span>
           <div className="flex gap-4">
-            <a href="#" className="transition-colors hover:text-foreground">
+            <Link to="/privacy" className="transition-colors hover:text-foreground">
               Privacy
-            </a>
-            <a href="#" className="transition-colors hover:text-foreground">
-              Support
-            </a>
+            </Link>
+            <Link to="/terms" className="transition-colors hover:text-foreground">
+              Terms
+            </Link>
           </div>
         </div>
       </aside>
@@ -331,13 +331,13 @@ export default function Register() {
                 </button>
                 <span>
                   I agree to the{" "}
-                  <a href="#" className="font-medium text-primary hover:underline">
+                  <Link to="/terms" className="font-medium text-primary hover:underline">
                     Terms and Conditions
-                  </a>{" "}
+                  </Link>{" "}
                   and acknowledge the{" "}
-                  <a href="#" className="font-medium text-primary hover:underline">
+                  <Link to="/privacy" className="font-medium text-primary hover:underline">
                     Privacy Policy
-                  </a>
+                  </Link>
                 </span>
               </label>
 
