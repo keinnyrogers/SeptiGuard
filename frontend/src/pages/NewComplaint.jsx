@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Activity, ArrowLeft, Bell, Bot, FileWarning,
-  Home, LogOut, Menu, Phone, Save, ShieldCheck, Send,
+  Home, LogOut, Menu, Phone, Save, Send,
   Upload, User, UserRound, Wrench, X,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
+import { BrandMark } from "@/components/BrandLogo";
 import { createResidentComplaint } from "../api.js";
 import ThemedSelect from "../components/ThemedSelect.jsx";
 import ResidentAvatar from "../components/ResidentAvatar.jsx";
@@ -48,7 +49,7 @@ const NAV = [
   { icon: Bot,         label: "Predict", path: "/predict" },
   { icon: FileWarning, label: "Complaints", path: "/complaints", active: true },
   { icon: Wrench,      label: "Maintenance", path: "/maintain" },
-  { icon: Bell,        label: "Alerts", path: "/alerts" },
+  { icon: Bell,        label: "Notifications", path: "/alerts" },
   { icon: UserRound,   label: "Profile", path: "/profile" },
 ];
 
@@ -57,7 +58,10 @@ const DRAFT_KEY_PREFIX = "septiguard_complaint_draft";
 export default function NewComplaint() {
   const { user, token, logout } = useAuth();
   const navigate = useNavigate();
-  const registeredAddress = user?.resident_profile?.address ?? user?.residentProfile?.address ?? user?.address ?? "";
+  const residentProfile = user?.resident_profile ?? user?.residentProfile ?? null;
+  const registeredAddress = residentProfile?.address ?? user?.address ?? "";
+  const residentPhone = residentProfile?.contact_number ?? user?.contact_number ?? user?.phone ?? "—";
+  const residentId = user?.id ? `RES-${String(user.id).padStart(4, "0")}` : "—";
   const draftKey = `${DRAFT_KEY_PREFIX}:${user?.id ?? user?.email ?? "anonymous"}`;
   const [savedDraft] = useState(() => {
     try {
@@ -87,7 +91,7 @@ export default function NewComplaint() {
   const [draftSavedAt, setDraftSavedAt] = useState(() => savedDraft?.savedAt ?? null);
 
   const soon = (name) => window.alert(`${name} will be connected in the next step.`);
-  const signOut = async () => { await logout(); navigate("/"); };
+  const signOut = async () => { if (await logout()) navigate("/"); };
 
   useEffect(() => () => {
     if (photoPreview) URL.revokeObjectURL(photoPreview);
@@ -197,8 +201,8 @@ export default function NewComplaint() {
       {/* ======================= SIDEBAR ======================= */}
       <aside className={`${open ? "flex" : "hidden"} fixed inset-y-0 left-0 z-40 w-24 flex-col border-r border-border bg-card px-2 py-5 lg:flex`}>
         <div className="mb-5 flex justify-center">
-          <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/40 bg-primary/10">
-            <ShieldCheck className="h-5 w-5 text-primary" />
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg">
+            <BrandMark className="h-8 w-8" />
           </div>
         </div>
         <nav className="flex flex-1 flex-col gap-1">
@@ -412,8 +416,8 @@ export default function NewComplaint() {
 
                 <div className="mt-3 space-y-2 text-[11px]">
                   <InfoRow label="Email" value={user?.email ?? "—"} />
-                  <InfoRow label="Phone" value={user?.phone ?? "—"} />
-                  <InfoRow label="ID" value={user?.resident_code ?? "—"} />
+                  <InfoRow label="Phone" value={residentPhone} />
+                  <InfoRow label="Resident ID" value={residentId} />
                 </div>
               </section>
 
@@ -438,9 +442,9 @@ export default function NewComplaint() {
                     Emergencies? Call the hotline directly
                   </li>
                 </ul>
-                <button onClick={() => soon("Full policy page")} className="mt-3 text-[11px] font-medium text-primary">
+                <Link to="/complaints/policy" className="mt-3 inline-block text-[11px] font-medium text-primary">
                   Read full policy →
-                </button>
+                </Link>
               </section>
 
               {/* Emergency Hotline */}

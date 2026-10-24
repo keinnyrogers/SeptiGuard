@@ -25,30 +25,53 @@ class MqttListenCommand extends Command
 
         $this->info("Listening on {$host}:{$port} ({$topic})");
 
-        $client = new MqttClient($host, $port, $clientId);
         $settings = (new ConnectionSettings)
             ->setKeepAliveInterval(60)
-            ->setUseTls((bool) config('services.mqtt.tls'));
+            ->setUseTls((bool) config('services.mqtt.tls'))
+            ->setReconnectAutomatically(true)
+            ->setMaxReconnectAttempts(3)
+            ->setDelayBetweenReconnectAttempts(2000);
 
-        $client->connect($settings, true);
-        $client->subscribe($topic, function (string $topic, string $message) use ($readingService): void {
-            $this->processMessage($topic, $message, $readingService);
-        }, MqttClient::QOS_AT_MOST_ONCE);
+        while (true) {
+            $client = new MqttClient($host, $port, $clientId);
+            try {
+                $client->connect($settings);
+                $client->subscribe($topic, function (string $topic, string $message) use ($readingService): void {
+                    $this->processMessage($topic, $message, $readingService);
+                }, MqttClient::QOS_AT_MOST_ONCE);
 
-        try {
-            $client->loop(true);
-        } finally {
-            $client->disconnect();
+                $this->info('Connected to MQTT broker and subscribed.');
+                $client->loop(true);
+                $this->warn('MQTT listener loop ended. Reconnecting in 5 seconds.');
+            } catch (Throwable $exception) {
+                Log::warning('MQTT listener disconnected; reconnecting.', [
+                    'host' => $host,
+                    'port' => $port,
+                    'error' => $exception->getMessage(),
+                ]);
+                $this->warn('MQTT connection lost: '.$exception->getMessage());
+                $this->line('Retrying MQTT connection in 5 seconds...');
+            } finally {
+                if ($client->isConnected()) {
+                    try {
+                        $client->disconnect();
+                    } catch (Throwable $exception) {
+                        Log::warning('Unable to close MQTT connection cleanly.', [
+                            'error' => $exception->getMessage(),
+                        ]);
+                    }
+                }
+            }
+
+            sleep(5);
         }
-
-        return self::SUCCESS;
     }
 
     private function processMessage(string $topic, string $message, SensorReadingService $readingService): void
     {
         try {
             $payload = json_decode($message, true, 512, JSON_THROW_ON_ERROR);
-            if (!is_array($payload)) {
+            if (! is_array($payload)) {
                 throw new \InvalidArgumentException('Payload must be a JSON object.');
             }
 
@@ -56,13 +79,14 @@ class MqttListenCommand extends Command
                 'device_id' => ['required', 'string', 'max:100'],
                 'fill_level_percentage' => ['nullable', 'numeric', 'between:0,100'],
                 'distance_cm' => ['nullable', 'numeric', 'min:0'],
+                'wifi_rssi_dbm' => ['nullable', 'integer', 'between:-127,0'],
                 'measured_at' => ['nullable', 'date'],
                 'notes' => ['nullable', 'string', 'max:1000'],
                 'source' => ['sometimes', 'in:sensor,simulated'],
                 'firmware_version' => ['sometimes', 'string', 'max:32'],
             ]);
 
-            if (!isset($validated['fill_level_percentage']) && !isset($validated['distance_cm'])) {
+            if (! isset($validated['fill_level_percentage']) && ! isset($validated['distance_cm'])) {
                 throw new \InvalidArgumentException('Payload must contain fill_level_percentage or distance_cm.');
             }
 

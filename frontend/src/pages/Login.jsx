@@ -12,6 +12,8 @@ import {
   ShieldCheck,
   UserPlus,
 } from "lucide-react";
+import { BrandLogo } from "@/components/BrandLogo";
+import { requestPasswordReset } from "../api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
 const FEATURES = [
@@ -41,6 +43,9 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [keepSignedIn, setKeepSignedIn] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [forgotPassword, setForgotPassword] = useState(false);
+  const [resetRequestSubmitting, setResetRequestSubmitting] = useState(false);
+  const [resetRequestSent, setResetRequestSent] = useState(false);
   const [error, setError] = useState(null);
 
   // If already authenticated, bounce to the right dashboard.
@@ -53,6 +58,11 @@ export default function Login() {
   }, [isReady, isAuthenticated, navigate]);
 
   async function handleSubmit(e) {
+    if (forgotPassword) {
+      await handleForgotPassword(e);
+      return;
+    }
+
     e.preventDefault();
     setError(null);
 
@@ -63,6 +73,27 @@ export default function Login() {
     if (!password) {
       setError("Please enter your password.");
       return;
+    }
+
+    async function handleForgotPassword(e) {
+      e.preventDefault();
+      setError(null);
+      setResetRequestSent(false);
+
+      if (!email.trim()) {
+        setError("Enter your account email address to request a reset link.");
+        return;
+      }
+
+      setResetRequestSubmitting(true);
+      try {
+        await requestPasswordReset(email.trim());
+        setResetRequestSent(true);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not request a password reset.");
+      } finally {
+        setResetRequestSubmitting(false);
+      }
     }
 
     setSubmitting(true);
@@ -90,15 +121,10 @@ export default function Login() {
         <div className="pointer-events-none absolute -left-10 top-1/3 h-[20rem] w-[20rem] rounded-full bg-accent/15 blur-[100px]" />
 
         {/* Branding */}
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-primary/40 bg-card septiglow">
-            <ShieldCheck className="h-6 w-6 text-primary" strokeWidth={2.4} />
-          </div>
+        <div className="relative z-10">
+          <BrandLogo className="h-12 w-auto" />
           <div className="leading-tight">
-            <p className="font-display text-lg font-bold tracking-tight text-foreground">
-              SeptiGuard
-            </p>
-            <p className="text-xs text-muted-foreground">SeptiGuard Portal · v1.0</p>
+            <p className="text-xs text-muted-foreground">Portal · v1.0</p>
           </div>
         </div>
 
@@ -168,25 +194,27 @@ export default function Login() {
         {/* Form */}
         <div className="relative z-10 mx-auto flex w-full max-w-md flex-col justify-center py-10">
           {/* mobile brand */}
-          <div className="mb-8 flex items-center gap-3 lg:hidden">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/40 bg-card septiglow">
-              <ShieldCheck className="h-5 w-5 text-primary" strokeWidth={2.4} />
-            </div>
+          <div className="mb-8 lg:hidden">
+            <BrandLogo className="h-10 w-auto" />
             <div className="leading-tight">
-              <p className="font-display text-base font-bold text-foreground">
-                SeptiGuard
-              </p>
-              <p className="text-xs text-muted-foreground">SeptiGuard Portal · v1.0</p>
+              <p className="text-xs text-muted-foreground">Portal · v1.0</p>
             </div>
           </div>
 
           <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
-            Sign in
+            {forgotPassword ? "Reset your password" : "Sign in"}
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Enter your credentials to access your SeptiGuard dashboard.
+            {forgotPassword
+              ? "Enter your registered email and we’ll send a password reset link if an account exists."
+              : "Enter your credentials to access your SeptiGuard dashboard."}
           </p>
 
+          {resetRequestSent && (
+            <div role="status" className="mt-6 rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
+              If an account exists for that email, a password reset link will be sent shortly.
+            </div>
+          )}
           {error && (
             <div className="mt-6 flex items-start gap-2 rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
               <span className="mt-0.5 text-danger">⚠</span>
@@ -194,7 +222,41 @@ export default function Login() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="mt-6 space-y-5" noValidate>
+          {forgotPassword ? (
+            <form onSubmit={handleSubmit} className="mt-6 space-y-5" noValidate>
+              <div className="space-y-2">
+                <label htmlFor="email" className="block text-sm font-medium text-muted-foreground">
+                  Email Address (Registered in HOA)
+                </label>
+                <div className="relative">
+                  <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    placeholder="your@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="h-12 w-full rounded-lg border border-border bg-input pl-11 pr-4 text-sm text-foreground placeholder:text-muted-foreground/60 transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                disabled={resetRequestSubmitting}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary font-semibold text-primary-foreground transition-all hover:bg-accent focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {resetRequestSubmitting ? <><Loader2 className="h-5 w-5 animate-spin" /> Sending link…</> : "Send reset link"}
+              </button>
+              <button type="button" onClick={() => {
+                setForgotPassword(false);
+                setResetRequestSent(false);
+                setError(null);
+              }} className="w-full text-sm font-medium text-primary hover:underline">
+                Back to sign in
+              </button>
+            </form>
+          ) : <form onSubmit={handleSubmit} className="mt-6 space-y-5" noValidate>
             {/* Email */}
             <div className="space-y-2">
               <label
@@ -226,12 +288,16 @@ export default function Login() {
                 >
                   Password
                 </label>
-                <a
-                  href="#"
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotPassword(true);
+                    setError(null);
+                  }}
                   className="text-sm font-medium text-primary hover:underline"
                 >
                   Forgot password?
-                </a>
+                </button>
               </div>
               <div className="relative">
                 <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-muted-foreground" />
@@ -297,7 +363,7 @@ export default function Login() {
                 </>
               )}
             </button>
-          </form>
+          </form>}
 
           {/* Register prompt */}
           <div className="mt-6 flex items-center gap-3 rounded-lg border border-border bg-card/60 px-4 py-3.5 lg:flex">

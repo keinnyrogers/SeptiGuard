@@ -2,11 +2,12 @@ import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Activity, Bell, Bot, Copy, FileWarning, Filter, Home, Lightbulb,
-  LogOut, Menu, Plus, Search, ShieldCheck, TriangleAlert,
+  LogOut, Menu, Plus, Search, TriangleAlert,
   Trash2, UserRound, Volume2, Waves, Wrench, ChevronLeft, ChevronRight,
   Clock, Sparkles, CircleCheck,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
+import { BrandMark } from "@/components/BrandLogo";
 import ResidentAvatar from "../components/ResidentAvatar.jsx";
 import ResidentComplaintPanel from "../components/ResidentComplaintPanel.jsx";
 import { fetchResidentComplaints } from "../api.js";
@@ -108,7 +109,7 @@ const NAV = [
   { icon: Bot,         label: "Predict", path: "/predict" },
   { icon: FileWarning, label: "Complaints", path: "/complaints", active: true },
   { icon: Wrench,      label: "Maintenance", path: "/maintain" },
-  { icon: Bell,        label: "Alerts", path: "/alerts" },
+  { icon: Bell,        label: "Notifications", path: "/alerts" },
   { icon: UserRound,   label: "Profile", path: "/profile" },
 ];
 
@@ -132,7 +133,7 @@ export default function Complaints() {
   const [page, setPage] = useState(1);
 
   const soon = (name) => window.alert(`${name} will be connected in the next step.`);
-  const signOut = async () => { await logout(); navigate("/"); };
+  const signOut = async () => { if (await logout()) navigate("/"); };
 
   useEffect(() => {
     if (user?.demo_mode || !token) return undefined;
@@ -184,8 +185,8 @@ export default function Complaints() {
       {/* ======================= SIDEBAR ======================= */}
       <aside className={`${open ? "flex" : "hidden"} fixed inset-y-0 left-0 z-40 w-24 flex-col border-r border-border bg-card px-2 py-5 lg:flex`}>
         <div className="mb-5 flex justify-center">
-          <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/40 bg-primary/10">
-            <ShieldCheck className="h-5 w-5 text-primary" />
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg">
+            <BrandMark className="h-8 w-8" />
           </div>
         </div>
         <nav className="flex flex-1 flex-col gap-1">

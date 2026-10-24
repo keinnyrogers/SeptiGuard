@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Activity, Bell, Bot, CalendarDays, FileWarning,
-  Home, LogOut, Menu, ShieldCheck, UserRound, Wrench,
+  Home, LogOut, Menu, UserRound, Wrench,
   CheckCircle2, Clock, RefreshCw,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
+import { BrandMark } from "@/components/BrandLogo";
 import ResidentEmptyPage from "../components/ResidentEmptyPage.jsx";
 import RequestMaintenancePanel from "../components/RequestMaintenancePanel.jsx";
 import { fetchResidentComplaints, fetchResidentTankLatest } from "../api.js";
@@ -17,7 +18,7 @@ const NAV = [
   { icon: Bot,         label: "Predict", path: "/predict" },
   { icon: FileWarning, label: "Complaints", path: "/complaints" },
   { icon: Wrench,      label: "Maintenance", path: "/maintain", active: true },
-  { icon: Bell,        label: "Alerts", path: "/alerts" },
+  { icon: Bell,        label: "Notifications", path: "/alerts" },
   { icon: UserRound,   label: "Profile", path: "/profile" },
 ];
 
@@ -70,7 +71,9 @@ export default function Maintain() {
     : liveTank?.has_sensor
       ? {
         installationDate: liveTank.installation_date ? new Date(liveTank.installation_date).toLocaleDateString() : "Not recorded",
-        lastMaintenance: liveTank.last_maintenance_date ? new Date(liveTank.last_maintenance_date).toLocaleDateString() : null,
+        lastMaintenance: liveTank.last_service_date
+          ? new Date(`${liveTank.last_service_date}T00:00:00`).toLocaleDateString()
+          : null,
       }
       : null;
   const maintenanceRequests = demoMode
@@ -121,7 +124,7 @@ export default function Maintain() {
   }, [token, demoMode, refreshKey]);
 
   const soon = (name) => window.alert(`${name} will be connected in the next step.`);
-  const signOut = async () => { await logout(); navigate("/"); };
+  const signOut = async () => { if (await logout()) navigate("/"); };
   const refresh = () => setRefreshKey((key) => key + 1);
 
   if (loading) {
@@ -173,8 +176,8 @@ export default function Maintain() {
       {/* ======================= SIDEBAR ======================= */}
       <aside className={`${open ? "flex" : "hidden"} fixed inset-y-0 left-0 z-40 w-24 flex-col border-r border-border bg-card px-2 py-5 lg:flex`}>
         <div className="mb-5 flex justify-center">
-          <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/40 bg-primary/10">
-            <ShieldCheck className="h-5 w-5 text-primary" />
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg">
+            <BrandMark className="h-8 w-8" />
           </div>
         </div>
         <nav className="flex flex-1 flex-col gap-1">

@@ -41,6 +41,55 @@ class ResidentInformationChangeTest extends TestCase
             'field' => 'phone',
             'status' => 'pending',
         ]);
+        $this->assertDatabaseHas('septi_notifications', [
+            'user_id' => $resident->id,
+            'title' => 'Information change request received',
+            'channel' => 'in_app',
+            'is_read' => false,
+        ]);
+    }
+
+    public function test_admin_receives_an_unread_notification_for_a_pending_information_change_request(): void
+    {
+        $resident = User::factory()->create([
+            'role' => 'resident',
+            'account_status' => 'approved',
+            'name' => 'Alex Resident',
+        ]);
+        $admin = User::factory()->create(['role' => 'hoa_admin']);
+        $request = ResidentInformationChangeRequest::query()->create([
+            'user_id' => $resident->id,
+            'field' => 'address',
+            'current_value' => 'Blk 1 Lot 1',
+            'requested_value' => 'Blk 2 Lot 4',
+            'status' => 'pending',
+        ]);
+        $token = $this->tokenFor($admin);
+        $notificationId = 'information-change-'.$request->id;
+
+        $this->withToken($token)
+            ->getJson('/api/admin/notifications')
+            ->assertOk()
+            ->assertJsonFragment([
+                'id' => $notificationId,
+                'type' => 'information_change',
+                'title' => 'Resident information change request',
+                'detail' => 'Alex Resident requested a change to their address.',
+                'path' => '/admin/residents',
+                'unread' => true,
+            ]);
+
+        $this->withToken($token)
+            ->postJson("/api/admin/notifications/{$notificationId}/read")
+            ->assertOk();
+
+        $this->withToken($token)
+            ->getJson('/api/admin/notifications')
+            ->assertOk()
+            ->assertJsonFragment([
+                'id' => $notificationId,
+                'unread' => false,
+            ]);
     }
 
     public function test_resident_cannot_submit_demo_or_duplicate_pending_requests(): void

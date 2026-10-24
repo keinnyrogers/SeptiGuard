@@ -6,10 +6,11 @@ import {
 } from "recharts";
 import {
   Activity, Battery, Bell, Bot, CalendarDays, FileWarning, Home,
-  LogOut, Menu, RefreshCw, ShieldCheck, TriangleAlert,
+  LogOut, Menu, RefreshCw, TriangleAlert,
   UserRound, Wifi, Wrench,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
+import { BrandMark } from "@/components/BrandLogo";
 import { fetchResidentTankLatest } from "../api.js";
 import { subscribeToTank } from "../realtime.js";
 import ResidentEmptyPage from "../components/ResidentEmptyPage.jsx";
@@ -80,7 +81,7 @@ const NAV = [
   { icon: Bot,         label: "Predict", path: "/predict" },
   { icon: FileWarning, label: "Complaints", path: "/complaints" },
   { icon: Wrench,      label: "Maintenance", path: "/maintain" },
-  { icon: Bell,        label: "Alerts", path: "/alerts" },
+  { icon: Bell,        label: "Notifications", path: "/alerts" },
   { icon: UserRound,   label: "Profile", path: "/profile" },
 ];
 
@@ -183,7 +184,7 @@ export default function RealTimeMonitoring() {
   }, [liveData?.deviceId, user?.demo_mode]);
 
   const soon = (name) => window.alert(`${name} will be connected in the next step.`);
-  const signOut = async () => { await logout(); navigate("/"); };
+  const signOut = async () => { if (await logout()) navigate("/"); };
 
   if (loading) {
     return <ResidentEmptyPage active="Monitoring" title="Real-Time Monitoring" description="" loading />;
@@ -251,8 +252,8 @@ export default function RealTimeMonitoring() {
       {/* ======================= SIDEBAR ======================= */}
       <aside className={`${open ? "flex" : "hidden"} fixed inset-y-0 left-0 z-40 w-24 flex-col border-r border-border bg-card px-2 py-5 lg:flex`}>
         <div className="mb-5 flex justify-center">
-          <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/40 bg-primary/10">
-            <ShieldCheck className="h-5 w-5 text-primary" />
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg">
+            <BrandMark className="h-8 w-8" />
           </div>
         </div>
         <nav className="flex flex-1 flex-col gap-1">

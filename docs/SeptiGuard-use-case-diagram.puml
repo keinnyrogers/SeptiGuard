@@ -1,0 +1,57 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+actor Resident
+actor "HOA Administrator" as Admin
+actor "IoT Tank Sensor" as Sensor
+actor "Email / Push Service" as Notify
+
+rectangle "SeptiGuard Septic Tank Monitoring and Maintenance System" {
+  usecase "Sign in / reset password" as UC_Auth
+  usecase "View tank status\nand reading history" as UC_Monitor
+  usecase "Receive tank threshold alert" as UC_Alert
+  usecase "Submit complaint" as UC_Complaint
+  usecase "Request desludging service" as UC_Desludge
+  usecase "Track complaint and\nservice status" as UC_Track
+  usecase "Submit information-change\nrequest" as UC_InfoRequest
+
+  usecase "Send tank reading" as UC_Reading
+  usecase "Evaluate tank threshold" as UC_Threshold
+  usecase "Review complaints and\nupdate status / response" as UC_Review
+  usecase "Review information-change\nrequests" as UC_InfoReview
+  usecase "Schedule desludging and\nupdate service status" as UC_Schedule
+  usecase "Manage residents and\ntank devices" as UC_Manage
+  usecase "Deliver email / push\nnotification" as UC_Deliver
+}
+
+Resident --> UC_Auth
+Resident --> UC_Monitor
+Resident --> UC_Alert
+Resident --> UC_Complaint
+Resident --> UC_Desludge
+Resident --> UC_Track
+Resident --> UC_InfoRequest
+
+Sensor --> UC_Reading
+UC_Reading ..> UC_Threshold : <<include>>
+UC_Alert ..> UC_Threshold : <<extend>>\n[warning or critical level]
+
+Admin --> UC_Auth
+Admin --> UC_Review
+Admin --> UC_InfoReview
+Admin --> UC_Schedule
+Admin --> UC_Manage
+Admin --> UC_Track
+
+Notify --> UC_Deliver
+UC_Alert ..> UC_Deliver : <<include>>
+UC_Review ..> UC_Deliver : <<include>>
+UC_Schedule ..> UC_Deliver : <<include>>
+
+note bottom of UC_Deliver
+  Email and push delivery depend on
+  the corresponding service being configured.
+end note
+@enduml

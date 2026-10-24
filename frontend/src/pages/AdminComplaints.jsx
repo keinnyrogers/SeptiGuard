@@ -184,8 +184,7 @@ export default function AdminComplaints() {
         user={user}
         active="Complaints"
         signOut={async () => {
-          await logout();
-          navigate("/");
+          if (await logout()) navigate("/");
         }}
       />
       <main className="page-transition min-w-0 flex-1 lg:ml-52">

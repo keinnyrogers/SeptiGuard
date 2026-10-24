@@ -13,7 +13,7 @@ class SensorReadingService
     public function __construct(private ResidentNotificationService $notifications) {}
 
     /**
-     * @param  array{device_id: string, fill_level_percentage?: int|float, distance_cm?: int|float|null, measured_at?: string, notes?: string|null, firmware_version?: string}  $payload
+     * @param  array{device_id: string, fill_level_percentage?: int|float, distance_cm?: int|float|null, wifi_rssi_dbm?: int|null, measured_at?: string, notes?: string|null, firmware_version?: string}  $payload
      */
     public function store(array $payload, string $source = 'sensor'): TankReading
     {
@@ -52,6 +52,7 @@ class SensorReadingService
             $reading = $septicSystem->tankReadings()->create([
                 'fill_level_percentage' => $fillLevel,
                 'distance_cm' => $payload['distance_cm'] ?? null,
+                'wifi_rssi_dbm' => $payload['wifi_rssi_dbm'] ?? null,
                 'measured_at' => isset($payload['measured_at'])
                     ? Carbon::parse($payload['measured_at'])
                     : now(),

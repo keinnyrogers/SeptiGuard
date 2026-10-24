@@ -1,17 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Bell, CircleAlert, ClipboardList, UserPlus } from "lucide-react";
-import { fetchAdminNotifications } from "../api.js";
+import { ArrowRight, Bell, Check, CircleAlert, ClipboardList, UserPlus } from "lucide-react";
+import { fetchAdminNotifications, markAdminNotificationRead } from "../api.js";
 
 const ICONS = {
   registration: UserPlus,
   complaint: ClipboardList,
   critical: CircleAlert,
+  information_change: ClipboardList,
 };
 
 export default function AdminNotificationPopover({ token, onViewAll, navigate }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([]);
   const [error, setError] = useState("");
+  const [markingId, setMarkingId] = useState(null);
   const ref = useRef(null);
   const unread = items.filter((item) => item.unread).length;
 
@@ -45,6 +47,19 @@ export default function AdminNotificationPopover({ token, onViewAll, navigate })
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
+  async function markAsRead(notificationId) {
+    setMarkingId(notificationId);
+    setError("");
+    try {
+      await markAdminNotificationRead(token, notificationId);
+      setItems((current) => current.map((item) => item.id === notificationId ? { ...item, unread: false } : item));
+    } catch (requestError) {
+      setError(requestError.message || "Unable to mark notification as read.");
+    } finally {
+      setMarkingId(null);
+    }
+  }
+
   return (
     <div ref={ref} className="relative">
       <button type="button" onClick={() => setOpen((value) => !value)} aria-label="Notifications" aria-expanded={open} className={`relative rounded-full bg-muted p-2 hover:bg-muted/70 ${open ? "text-primary ring-1 ring-primary/50" : ""}`}>
@@ -61,15 +76,14 @@ export default function AdminNotificationPopover({ token, onViewAll, navigate })
             {error ? <li className="px-4 py-8 text-center text-xs text-danger">{error}</li> : items.length === 0 ? <li className="px-4 py-8 text-center text-xs text-muted-foreground">No notifications yet.</li> : items.map((item) => {
               const Icon = ICONS[item.type] ?? CircleAlert;
               return (
-                <li key={item.id}>
-                  <button type="button" onClick={() => { setOpen(false); navigate?.(item.path); }} className="flex w-full gap-3 px-4 py-3 text-left hover:bg-muted/50">
-                    <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold">{item.title}</span>
-                      <span className="mt-1 block text-xs text-muted-foreground">{item.detail}</span>
-                      <span className="mt-1 block text-[11px] text-muted-foreground">{item.time ?? "Recently"}</span>
-                    </span>
+                <li key={item.id} className={`flex items-start gap-2 px-4 py-3 ${item.unread ? "bg-primary/[0.03]" : ""}`}>
+                  <Icon className="mt-1 h-4 w-4 shrink-0 text-primary" />
+                  <button type="button" onClick={() => { setOpen(false); navigate?.(item.path); }} className="min-w-0 flex-1 text-left">
+                    <span className={`block text-sm ${item.unread ? "font-semibold" : "font-medium text-muted-foreground"}`}>{item.title}</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">{item.detail}</span>
+                    <span className="mt-1 block text-[11px] text-muted-foreground">{item.time ?? "Recently"}</span>
                   </button>
+                  {item.unread && <button type="button" disabled={markingId === item.id} onClick={() => markAsRead(item.id)} aria-label={`Mark ${item.title} as read`} title="Mark as read" className="mt-0.5 flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/10 disabled:opacity-50"><Check className="h-3.5 w-3.5" /><span>Mark read</span></button>}
                 </li>
               );
             })}

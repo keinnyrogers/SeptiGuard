@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ResidentInformationChangeRequest;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -53,14 +54,37 @@ class ResidentInformationChangeController extends Controller
             ], 409);
         }
 
-        $changeRequest = ResidentInformationChangeRequest::query()->create([
-            'user_id' => $resident->id,
-            'field' => $validated['field'],
-            'current_value' => $currentValue === null ? null : (string) $currentValue,
-            'requested_value' => trim($validated['requested_value']),
-            'reason' => isset($validated['reason']) ? trim($validated['reason']) : null,
-            'status' => 'pending',
-        ]);
+        $changeRequest = DB::transaction(function () use ($resident, $validated, $currentValue): ResidentInformationChangeRequest {
+            $changeRequest = ResidentInformationChangeRequest::query()->create([
+                'user_id' => $resident->id,
+                'field' => $validated['field'],
+                'current_value' => $currentValue === null ? null : (string) $currentValue,
+                'requested_value' => trim($validated['requested_value']),
+                'reason' => isset($validated['reason']) ? trim($validated['reason']) : null,
+                'status' => 'pending',
+            ]);
+
+            $fieldName = [
+                'name' => 'full name',
+                'email' => 'email address',
+                'phone' => 'phone number',
+                'address' => 'address',
+                'household' => 'household information',
+                'other' => 'account information',
+            ][$validated['field']];
+
+            $resident->septiNotifications()->create([
+                'title' => 'Information change request received',
+                'message' => "Your request to update your {$fieldName} was sent to the HOA for review.",
+                'type' => 'announcement',
+                'channel' => 'in_app',
+                'is_read' => false,
+                'is_sent' => true,
+                'sent_at' => now(),
+            ]);
+
+            return $changeRequest;
+        });
 
         return response()->json([
             'message' => 'Your information change request was sent to the HOA for review.',

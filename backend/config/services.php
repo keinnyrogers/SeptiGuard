@@ -45,6 +45,11 @@ return [
         'timeout' => (int) env('PREDICTION_SERVICE_TIMEOUT', 5),
     ],
 
+    'firebase' => [
+        'credentials' => env('FIREBASE_CREDENTIALS'),
+        'project_id' => env('FIREBASE_PROJECT_ID'),
+    ],
+
     'mqtt' => [
         'host' => env('MQTT_HOST', 'broker.hivemq.com'),
         'port' => (int) env('MQTT_PORT', 1883),

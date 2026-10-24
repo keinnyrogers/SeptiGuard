@@ -128,8 +128,7 @@ export default function AdminReports() {
     { label: "Unresolved Complaints", value: unresolved, sub: "Pending or in progress", icon: CircleAlert, chip: "bg-danger/15 text-danger" },
   ];
   const signOut = async () => {
-    await logout();
-    navigate("/");
+    if (await logout()) navigate("/");
   };
 
   if (!user?.demo_mode) {

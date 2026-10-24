@@ -13,7 +13,9 @@ use App\Http\Controllers\ResidentDeviceController;
 use App\Http\Controllers\ResidentNotificationController;
 use App\Http\Controllers\ResidentInformationChangeController;
 use App\Http\Controllers\ResidentPredictionController;
+use App\Http\Controllers\ResidentPushTokenController;
 use App\Http\Controllers\ResidentTankController;
+use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\SensorReadingController;
 use Illuminate\Support\Facades\Route;
 
@@ -24,6 +26,12 @@ Route::post('/sensor/readings', [SensorReadingController::class, 'store'])
 Route::post('/login', [ApiAuthController::class, 'login'])->name('api.login');
 Route::post('/register', [ApiAuthController::class, 'register'])->name('api.register');
 Route::post('/logout', [ApiAuthController::class, 'logout'])->name('api.logout');
+Route::post('/forgot-password', [PasswordResetController::class, 'sendResetLink'])
+    ->middleware('throttle:5,1')
+    ->name('api.password.email');
+Route::post('/reset-password', [PasswordResetController::class, 'reset'])
+    ->middleware('throttle:5,1')
+    ->name('api.password.update');
 
 Route::middleware('api.token')->group(function () {
     Route::get('/resident/tank/latest', [ResidentTankController::class, 'latest'])->name('api.resident.tank.latest');
@@ -35,6 +43,9 @@ Route::middleware('api.token')->group(function () {
     Route::get('/resident/notifications', [ResidentNotificationController::class, 'index'])->name('api.resident.notifications.index');
     Route::post('/resident/notifications/read', [ResidentNotificationController::class, 'markRead'])->name('api.resident.notifications.read');
     Route::post('/resident/notifications/{notificationId}/read', [ResidentNotificationController::class, 'markOneRead'])->name('api.resident.notifications.read-one');
+    Route::post('/resident/push/status', [ResidentPushTokenController::class, 'status'])->name('api.resident.push.status');
+    Route::post('/resident/push/tokens', [ResidentPushTokenController::class, 'store'])->name('api.resident.push.tokens.store');
+    Route::delete('/resident/push/tokens', [ResidentPushTokenController::class, 'destroy'])->name('api.resident.push.tokens.destroy');
     Route::get('/resident/account', [ResidentAccountController::class, 'show'])->name('api.resident.account.show');
     Route::post('/resident/profile/photo', [ResidentAccountController::class, 'uploadProfilePhoto'])->name('api.resident.profile.photo.upload');
     Route::get('/resident/profile/photo', [ResidentAccountController::class, 'profilePhoto'])->name('api.resident.profile.photo');
@@ -55,6 +66,7 @@ Route::middleware(['api.token', 'hoa'])->prefix('admin')->name('api.admin.')->gr
     Route::get('/complaints', [AdminComplaintController::class, 'index'])->name('complaints.index');
     Route::get('/complaints/{complaintId}/photo', [AdminComplaintController::class, 'photo'])->name('complaints.photo');
     Route::get('/notifications', [AdminNotificationController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/{notificationKey}/read', [AdminNotificationController::class, 'markRead'])->name('notifications.read');
     Route::get('/reports', [AdminReportController::class, 'index'])->name('reports.index');
     Route::patch('/complaints/{complaint}/status', [AdminComplaintController::class, 'updateStatus'])->name('complaints.status');
     Route::patch('/residents/{user}/approval', [AdminResidentController::class, 'updateApproval'])->name('residents.approval');

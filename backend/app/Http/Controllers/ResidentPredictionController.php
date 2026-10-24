@@ -54,4 +54,5 @@ class ResidentPredictionController extends Controller
             ], 503);
         }
     }
+
 }

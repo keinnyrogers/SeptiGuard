@@ -13,6 +13,7 @@ import {
   User,
   UserPlus,
 } from "lucide-react";
+import { BrandLogo } from "@/components/BrandLogo";
 import { registerRequest } from "../api.js";
 
 export default function Register() {
@@ -76,15 +77,10 @@ export default function Register() {
         <div className="pointer-events-none absolute -left-24 top-1/4 h-[28rem] w-[28rem] rounded-full bg-primary/20 blur-[120px]" />
         <div className="pointer-events-none absolute -left-10 bottom-0 h-[22rem] w-[22rem] rounded-full bg-success/10 blur-[110px]" />
 
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-primary/40 bg-card septiglow">
-            <ShieldCheck className="h-6 w-6 text-primary" strokeWidth={2.4} />
-          </div>
+        <div className="relative z-10">
+          <BrandLogo className="h-12 w-auto" />
           <div className="leading-tight">
-            <p className="font-display text-lg font-bold tracking-tight text-foreground">
-              SeptiGuard
-            </p>
-            <p className="text-xs text-muted-foreground">SeptiGuard Portal · v1.0</p>
+            <p className="text-xs text-muted-foreground">Portal · v1.0</p>
           </div>
         </div>
 
@@ -133,15 +129,10 @@ export default function Register() {
         </div>
 
         <div className="relative z-10 mx-auto flex w-full max-w-lg flex-1 flex-col justify-center py-8">
-          <div className="mb-8 flex items-center gap-3 lg:hidden">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/40 bg-card septiglow">
-              <ShieldCheck className="h-5 w-5 text-primary" strokeWidth={2.4} />
-            </div>
+          <div className="mb-8 lg:hidden">
+            <BrandLogo className="h-10 w-auto" />
             <div className="leading-tight">
-              <p className="font-display text-base font-bold text-foreground">
-                SeptiGuard
-              </p>
-              <p className="text-xs text-muted-foreground">SeptiGuard Portal · v1.0</p>
+              <p className="text-xs text-muted-foreground">Portal · v1.0</p>
             </div>
           </div>
 

@@ -29,8 +29,13 @@ class TankFillForecastService
             $readings->whereDate('measured_at', '>', $latestDesludging->performed_on);
         }
 
+        $simulationForecast = (clone $readings)
+            ->orderByDesc('measured_at')
+            ->orderByDesc('id')
+            ->value('source') === 'simulated';
+
         $history = $readings
-            ->where('source', '!=', 'simulated')
+            ->where('source', $simulationForecast ? '=' : '!=', 'simulated')
             ->selectRaw('DATE(measured_at) as reading_date, AVG(fill_level_percentage) as fill_percentage, COUNT(*) as readings_count, MAX(measured_at) as measured_at')
             ->groupByRaw('DATE(measured_at)')
             ->orderBy('reading_date')
@@ -58,6 +63,8 @@ class TankFillForecastService
         if (! is_array($forecast)) {
             throw new RuntimeException('The prediction service returned an invalid response.');
         }
+
+        $forecast['data_source'] = $simulationForecast ? 'simulated' : 'live';
 
         return $forecast;
     }

@@ -111,6 +111,12 @@ String mqttConfigTopic;
 unsigned long lastPublishTime = 0;
 unsigned long lastWiFiAttempt = 0;
 unsigned long lastMqttAttempt = 0;
+unsigned long wifiConnectStartedAt = 0;
+bool wifiConnectInProgress = false;
+bool wifiWasConnected = false;
+
+const unsigned long WIFI_RETRY_INTERVAL_MS = 5000;
+const unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000;
 
 void processSerialCommand(char* command) {
   if (strcmp(command, "help") == 0 || strcmp(command, "HELP") == 0) {
@@ -376,43 +382,53 @@ const char* calculateStatus(float fillPercentage) {
 // --------------------------------------------------
 
 void connectWiFi() {
-  if (WiFi.status() == WL_CONNECTED) {
+  const unsigned long now = millis();
+  const bool isConnected = WiFi.status() == WL_CONNECTED;
+
+  if (isConnected) {
+    if (!wifiWasConnected) {
+      Serial.println("Wi-Fi connected.");
+      Serial.print("IP address: ");
+      Serial.println(WiFi.localIP());
+      showDisplay("Wi-Fi connected", DEVICE_ID);
+    }
+
+    wifiWasConnected = true;
+    wifiConnectInProgress = false;
     return;
   }
 
-  if (millis() - lastWiFiAttempt < 5000) {
+  if (wifiWasConnected) {
+    Serial.println("Wi-Fi connection lost.");
+    showDisplay("Wi-Fi disconnected", "Retrying...");
+    wifiWasConnected = false;
+  }
+
+  if (wifiConnectInProgress) {
+    if (now - wifiConnectStartedAt < WIFI_CONNECT_TIMEOUT_MS) {
+      return;
+    }
+
+    Serial.println("Wi-Fi connection timed out. Resetting attempt.");
+    WiFi.disconnect(false, false);
+    wifiConnectInProgress = false;
+    lastWiFiAttempt = now;
+    showDisplay("Wi-Fi unavailable", "Retrying...");
     return;
   }
 
-  lastWiFiAttempt = millis();
+  if (now - lastWiFiAttempt < WIFI_RETRY_INTERVAL_MS) {
+    return;
+  }
 
-  Serial.print("Connecting to Wi-Fi");
+  lastWiFiAttempt = now;
+
+  Serial.println("Connecting to Wi-Fi...");
   showDisplay("Connecting Wi-Fi", "...");
 
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-  int attempts = 0;
-
-  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-    delay(500);
-    Serial.print(".");
-    attempts++;
-  }
-
-  Serial.println();
-
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("Wi-Fi connected.");
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
-
-    showDisplay("Wi-Fi connected", DEVICE_ID);
-    delay(1000);
-  } else {
-    Serial.println("Wi-Fi connection failed.");
-    showDisplay("Wi-Fi failed", "Check credentials");
-    delay(1000);
-  }
+  wifiConnectInProgress = true;
+  wifiConnectStartedAt = now;
 }
 
 // --------------------------------------------------
@@ -483,6 +499,7 @@ void publishReading(
     round(fillPercentage * 10.0) / 10.0;
   document["status"] = status;
   document["source"] = SIMULATION_MODE ? "simulated" : "sensor";
+  document["wifi_rssi_dbm"] = WiFi.RSSI();
   document["firmware_version"] = FIRMWARE_VERSION;
 
   char payload[256];

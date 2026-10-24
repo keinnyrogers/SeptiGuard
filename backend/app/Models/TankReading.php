@@ -20,6 +20,7 @@ class TankReading extends Model
         'notes',
         'status',
         'distance_cm',
+        'wifi_rssi_dbm',
     ];
 
     /**
@@ -36,6 +37,7 @@ class TankReading extends Model
             'measured_at' => 'datetime',
             'fill_level_percentage' => 'decimal:2',
             'distance_cm' => 'decimal:2',
+            'wifi_rssi_dbm' => 'integer',
         ];
     }
 }

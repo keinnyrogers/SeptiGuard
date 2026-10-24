@@ -74,6 +74,22 @@ class MqttListenCommandTest extends TestCase
         $this->assertDatabaseCount('tank_readings', 1);
     }
 
+    public function test_listener_saves_reported_wifi_signal_strength(): void
+    {
+        $system = SepticSystem::factory()->create(['device_id' => 'TNK-RSSI']);
+
+        $this->processMessage([
+            'device_id' => $system->device_id,
+            'distance_cm' => 75,
+            'wifi_rssi_dbm' => -58,
+        ]);
+
+        $this->assertDatabaseHas('tank_readings', [
+            'septic_system_id' => $system->id,
+            'wifi_rssi_dbm' => -58,
+        ]);
+    }
+
     public function test_listener_rejects_unknown_reading_source(): void
     {
         $system = SepticSystem::factory()->create(['device_id' => 'TNK-INVALID-SOURCE']);

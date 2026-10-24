@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use App\Notifications\ResidentPasswordResetNotification;
 
 #[Fillable(['name', 'email', 'password', 'role', 'account_status', 'demo_mode'])]
 #[Hidden(['password', 'remember_token', 'api_token_hash'])]
@@ -19,12 +20,17 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new ResidentPasswordResetNotification($token));
+    }
+
     /**
      * @return HasOne<SepticSystem, User>
      */
     public function septicSystem(): HasOne
     {
-        return $this->hasOne(SepticSystem::class)->with('tankReadings');
+        return $this->hasOne(SepticSystem::class);
     }
 
     public function residentProfile(): HasOne
@@ -43,6 +49,14 @@ class User extends Authenticatable
     public function septiNotifications(): HasMany
     {
         return $this->hasMany(SeptiNotification::class);
+    }
+
+    /**
+     * @return HasMany<ResidentPushToken, User>
+     */
+    public function residentPushTokens(): HasMany
+    {
+        return $this->hasMany(ResidentPushToken::class);
     }
 
     /**

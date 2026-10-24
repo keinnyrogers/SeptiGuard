@@ -29,8 +29,7 @@ export default function AdminDashboard({ navigate }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const soon = (name) => window.alert(`${name} will be connected in the next step.`);
   const signOut = async () => {
-    await logout();
-    routerNavigate("/");
+    if (await logout()) routerNavigate("/");
   };
   const goToTanks = navigate ?? (() => routerNavigate("/admin/tanks"));
   useEffect(() => {

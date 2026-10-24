@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Activity, ArrowRight, Bell, Bot, CircleGauge, FileWarning, Home, LogOut, Menu, ShieldCheck, UserRound, Wrench } from "lucide-react";
+import { Activity, ArrowRight, Bell, Bot, CircleGauge, FileWarning, Home, LogOut, Menu, UserRound, Wrench } from "lucide-react";
+import { BrandMark } from "@/components/BrandLogo";
 import { useAuth } from "../context/AuthContext.jsx";
 import ResidentAvatar from "./ResidentAvatar.jsx";
 
@@ -10,7 +11,7 @@ const NAV = [
   { icon: Bot, label: "Predict", path: "/predict" },
   { icon: FileWarning, label: "Complaints", path: "/complaints" },
   { icon: Wrench, label: "Maintenance", path: "/maintain" },
-  { icon: Bell, label: "Alerts", path: "/alerts" },
+  { icon: Bell, label: "Notifications", path: "/alerts" },
   { icon: UserRound, label: "Profile", path: "/profile" },
 ];
 
@@ -20,16 +21,15 @@ export default function ResidentEmptyPage({ active, title, description, emptyTit
   const [menuOpen, setMenuOpen] = useState(false);
 
   async function signOut() {
-    await logout();
-    navigate("/");
+    if (await logout()) navigate("/");
   }
 
   return (
     <div className="min-h-screen bg-background text-foreground lg:flex">
       <aside className={`${menuOpen ? "flex" : "hidden"} fixed inset-y-0 left-0 z-40 w-24 flex-col border-r border-border bg-card px-2 py-5 lg:flex`}>
         <div className="mb-5 flex justify-center">
-          <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/40 bg-primary/10">
-            <ShieldCheck className="h-5 w-5 text-primary" />
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg">
+            <BrandMark className="h-8 w-8" />
           </div>
         </div>
         <nav className="flex flex-1 flex-col gap-1">

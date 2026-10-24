@@ -3,7 +3,7 @@ import { ArrowLeft, ShieldCheck } from "lucide-react";
 
 // Shared shell for the public legal pages (/terms and /privacy).
 // Dark theme, existing design tokens only. No login required.
-export default function LegalPage({ title, updated, intro, sections }) {
+export default function LegalPage({ title, updated, intro, sections, backTo = "/", backLabel = "Back" }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-20 border-b border-border bg-background/90 backdrop-blur">
@@ -15,10 +15,10 @@ export default function LegalPage({ title, updated, intro, sections }) {
             <p className="font-display text-base font-bold tracking-tight">SeptiGuard</p>
           </div>
           <Link
-            to="/"
+            to={backTo}
             className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
           >
-            <ArrowLeft className="h-3.5 w-3.5" /> Back
+            <ArrowLeft className="h-3.5 w-3.5" /> {backLabel}
           </Link>
         </div>
       </header>

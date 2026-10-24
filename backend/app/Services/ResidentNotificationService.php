@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Jobs\DeliverResidentNotification;
+use App\Jobs\DeliverResidentPushNotification;
 use App\Models\Complaint;
 use App\Models\SepticSystem;
 use App\Models\TankReading;
@@ -114,6 +115,19 @@ class ResidentNotificationService
             'sent_at' => now(),
         ]);
 
+        if ($this->firebaseConfigured() && $resident->residentPushTokens()->exists()) {
+            $pushDelivery = $resident->septiNotifications()->create([
+                'title' => $title,
+                'message' => $message,
+                'type' => $type,
+                'channel' => 'fcm',
+                'is_read' => true,
+                'is_sent' => false,
+            ]);
+
+            DeliverResidentPushNotification::dispatch($pushDelivery->id)->afterCommit();
+        }
+
         if (! $this->emailConfigured()) {
             Log::warning('Resident email notification channel is not configured; delivery skipped.', [
                 'user_id' => $resident->id,
@@ -143,5 +157,15 @@ class ResidentNotificationService
             && (string) config('mail.mailers.smtp.username') !== ''
             && (string) config('mail.mailers.smtp.password') !== ''
             && filter_var(config('mail.from.address'), FILTER_VALIDATE_EMAIL) !== false;
+    }
+
+    private function firebaseConfigured(): bool
+    {
+        $credentials = config('services.firebase.credentials');
+
+        return is_string($credentials)
+            && $credentials !== ''
+            && is_file($credentials)
+            && (string) config('services.firebase.project_id') !== '';
     }
 }

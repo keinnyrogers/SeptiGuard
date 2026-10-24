@@ -94,6 +94,40 @@ export async function loginRequest(email, password) {
   return normaliseLoginResponse(data);
 }
 
+export async function requestPasswordReset(email) {
+  const response = await fetch(`${API_BASE_URL}/api/forgot-password`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ email }),
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    const validationMessage = data?.errors ? Object.values(data.errors)[0]?.[0] : null;
+    throw new Error(validationMessage ?? data?.message ?? "Could not request a password reset.");
+  }
+  return data;
+}
+
+export async function resetPassword(payload) {
+  const response = await fetch(`${API_BASE_URL}/api/reset-password`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    const validationMessage = data?.errors ? Object.values(data.errors)[0]?.[0] : null;
+    throw new Error(validationMessage ?? data?.message ?? "Could not reset your password.");
+  }
+  return data;
+}
+
 /** POST /api/register — creates a pending resident account. */
 export async function registerRequest(payload) {
   let res;
@@ -270,6 +304,16 @@ export function fetchAdminNotifications(token) {
   return fetchAdminCollection("notifications", token, "Could not load admin notifications.");
 }
 
+export async function markAdminNotificationRead(token, notificationId) {
+  const response = await fetch(`${API_BASE_URL}/api/admin/notifications/${encodeURIComponent(notificationId)}/read`, {
+    method: "POST",
+    headers: { Accept: "application/json", ...authHeader(token) },
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(data?.message ?? "Could not mark notification as read.");
+  return data;
+}
+
 export async function fetchAdminReports(token, days = "180") {
   const response = await fetch(`${API_BASE_URL}/api/admin/reports?days=${encodeURIComponent(days)}`, {
     headers: { Accept: "application/json", ...authHeader(token) },
@@ -402,6 +446,37 @@ export async function createResidentComplaint(token, payload) {
 export async function fetchResidentNotifications(token) {
   const data = await residentRequest("notifications", token);
   return data?.data ?? [];
+}
+
+export async function fetchResidentPushStatus(token, pushToken) {
+  const data = await residentRequest("push/status", token, {
+    method: "POST",
+    body: JSON.stringify({ token: pushToken ?? null }),
+  });
+  return data?.data ?? null;
+}
+
+export function registerResidentPushToken(token, pushToken) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 20000);
+
+  return residentRequest("push/tokens", token, {
+    method: "POST",
+    body: JSON.stringify({ token: pushToken }),
+    signal: controller.signal,
+  }).catch((error) => {
+    if (error.name === "AbortError") {
+      throw new Error("Saving this device to SeptiGuard timed out. Check your connection to the portal and try again.");
+    }
+    throw error;
+  }).finally(() => window.clearTimeout(timeout));
+}
+
+export function removeResidentPushToken(token, pushToken) {
+  return residentRequest("push/tokens", token, {
+    method: "DELETE",
+    body: JSON.stringify({ token: pushToken }),
+  });
 }
 
 export async function fetchResidentAccount(token) {

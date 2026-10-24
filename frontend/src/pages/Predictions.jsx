@@ -7,9 +7,10 @@ import {
 import {
   Activity, Bell, Bot, Box, CalendarDays, ChevronRight, CircleAlert,
   Clock, Droplets, FileWarning, Gauge, Home, LogOut, Menu,
-  ShieldCheck, TrendingUp, UserRound, Wrench,
+  TrendingUp, UserRound, Wrench,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
+import { BrandMark } from "@/components/BrandLogo";
 import ResidentAvatar from "../components/ResidentAvatar.jsx";
 import { fetchResidentPrediction } from "../api.js";
 
@@ -148,7 +149,7 @@ function createForecastViewData(forecast) {
   }).format(predictedDate) : null;
 
   return {
-    updated: "Based on latest readings",
+    updated: forecast.data_source === "simulated" ? "Based on simulated readings" : "Based on latest readings",
     trendFitPercent: forecast.trend_fit_percent,
     predictedDate: predictedDate ? {
       month: predictedDate.toLocaleString(undefined, { month: "short" }).toUpperCase(),
@@ -169,7 +170,9 @@ function createForecastViewData(forecast) {
         title: "Plan maintenance",
         badge: "ESTIMATE",
         tone: "urgent",
-        detail: `The trend reaches 80% around ${predictedFullText}. This is an estimate, not a guarantee.`,
+        detail: forecast.data_source === "simulated"
+          ? `Simulation only: the trend reaches 80% around ${predictedFullText}. This is not a real service recommendation.`
+          : `The trend reaches 80% around ${predictedFullText}. This is an estimate, not a guarantee.`,
       },
     ] : [],
     insights: [
@@ -199,7 +202,7 @@ const NAV = [
   { icon: Bot,         label: "Predict", path: "/predict", active: true },
   { icon: FileWarning, label: "Complaints", path: "/complaints" },
   { icon: Wrench,      label: "Maintenance", path: "/maintain" },
-  { icon: Bell,        label: "Alerts", path: "/alerts" },
+  { icon: Bell,        label: "Notifications", path: "/alerts" },
   { icon: UserRound,   label: "Profile", path: "/profile" },
 ];
 
@@ -243,8 +246,9 @@ export default function Predictions() {
       { icon: Gauge, label: "Trend fit", value: "--", note: "Not available", noteTone: "text-muted-foreground" },
     ],
   };
+  const isSimulatedForecast = !user?.demo_mode && forecast?.data_source === "simulated";
 
-  const signOut = async () => { await logout(); navigate("/"); };
+  const signOut = async () => { if (await logout()) navigate("/"); };
 
   useEffect(() => {
     if (user?.demo_mode || !token) return undefined;
@@ -286,8 +290,8 @@ export default function Predictions() {
       {/* ======================= SIDEBAR ======================= */}
       <aside className={`${open ? "flex" : "hidden"} fixed inset-y-0 left-0 z-40 w-24 flex-col border-r border-border bg-card px-2 py-5 lg:flex`}>
         <div className="mb-5 flex justify-center">
-          <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/40 bg-primary/10">
-            <ShieldCheck className="h-5 w-5 text-primary" />
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg">
+            <BrandMark className="h-8 w-8" />
           </div>
         </div>
         <nav className="flex flex-1 flex-col gap-1">
@@ -337,8 +341,17 @@ export default function Predictions() {
           <p className="text-xs text-muted-foreground">
             {user?.demo_mode
               ? "Simulated demo projection — not a real forecast"
-              : "A linear-regression estimate from recent readings — not a guarantee"}
+              : isSimulatedForecast
+                ? "Simulation only — based on simulated readings, not a real forecast or service recommendation"
+                : "A linear-regression estimate from recent readings — not a guarantee"}
           </p>
+
+          {isSimulatedForecast && (
+            <div role="status" className="rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-xs text-warning">
+              <strong>SIMULATED DATA — NOT A REAL PREDICTION.</strong>{" "}
+              This estimate uses simulated test readings.
+            </div>
+          )}
 
           <div className="grid gap-5 xl:grid-cols-[1.35fr_1fr]">
             {/* ============ LEFT: Predicted date + curve ============ */}
@@ -416,10 +429,10 @@ export default function Predictions() {
                   <h3 className="font-display text-sm font-semibold">Projected Fill Curve</h3>
                   <div className="flex flex-wrap gap-4 text-[11px] text-muted-foreground">
                     <span className="flex items-center gap-1.5">
-                      <span className="h-2 w-2 rounded-full bg-primary" /> Historical
+                      <span className="h-2 w-2 rounded-full bg-primary" /> {isSimulatedForecast ? "Simulated history" : "Historical"}
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <span className="h-2 w-2 rounded-full bg-warning" /> Predicted
+                      <span className="h-2 w-2 rounded-full bg-warning" /> {isSimulatedForecast ? "Simulated projection" : "Predicted"}
                     </span>
                     <span className="flex items-center gap-1.5">
                       <span className="h-2 w-2 rounded-full bg-danger" /> Critical 80%
@@ -456,7 +469,9 @@ export default function Predictions() {
                           color: "#fff",
                         }}
                         labelStyle={{ color: "#94a3b8" }}
-                        formatter={(v, n) => [`${v}%`, n === "historical" ? "Historical" : "Predicted"]}
+                        formatter={(v, n) => [`${v}%`, n === "historical"
+                          ? (isSimulatedForecast ? "Simulated history" : "Historical")
+                          : (isSimulatedForecast ? "Simulated projection" : "Predicted")]}
                       />
 
                       {/* critical threshold line — 80% */}

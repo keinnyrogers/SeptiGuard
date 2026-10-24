@@ -67,7 +67,7 @@ export default function TankPanel({ tank, onClose, onAction = () => {}, onRecord
 
   const status = tank.status ?? statusOf(tank.level);
   const meta = STATUS_META[status] ?? STATUS_META.normal;
-  const address = tank.address ?? (tank.block != null ? `Blk ${tank.block} Lot ${tank.lot}, Broadway` : "—");
+  const address = tank.address ?? (tank.block != null && tank.lot != null ? `Blk ${tank.block} Lot ${tank.lot}` : "—");
   const forecastText = tank.forecast_status === "threshold_reached"
     ? "At/above 80%"
     : tank.forecast_status === "ready" && Number.isInteger(tank.days_to_critical)
@@ -76,6 +76,12 @@ export default function TankPanel({ tank, onClose, onAction = () => {}, onRecord
   const actionLabel = status === "critical" ? "Dispatch desludging" : "Schedule desludging";
   const dateLabel = tank.lastDesludged
     ? new Date(`${tank.lastDesludged}T00:00:00`).toLocaleDateString()
+    : "Not recorded";
+  const installedLabel = tank.installed
+    ? new Date(tank.installed).toLocaleDateString()
+    : "Not recorded";
+  const capacityLabel = tank.capacity != null
+    ? `${Number(tank.capacity).toLocaleString()} L`
     : "Not recorded";
 
   const circ = 2 * Math.PI * 42;
@@ -146,8 +152,8 @@ export default function TankPanel({ tank, onClose, onAction = () => {}, onRecord
           <section className="space-y-3 rounded-lg border border-border bg-background p-4">
             <h3 className="text-sm font-semibold">System details</h3>
             <Row label="Device / Tank ID" value={tank.id} />
-            <Row label="Capacity" value={tank.capacity ?? "1,500 L"} />
-            <Row label="Installed" value={tank.installed ?? "Jan 15, 2023"} />
+            <Row label="Capacity" value={capacityLabel} />
+            <Row label="Installed" value={installedLabel} />
             <Row label="Last desludged" value={dateLabel} />
             {tank.date && <Row label="Last update" value={tank.date} />}
           </section>

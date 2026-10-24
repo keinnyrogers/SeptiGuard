@@ -133,8 +133,7 @@ export default function AdminDevices() {
         user={user}
         active="Devices"
         signOut={async () => {
-          await logout();
-          navigate("/");
+          if (await logout()) navigate("/");
         }}
       />
       <main className="min-w-0 flex-1 lg:ml-52">
@@ -207,7 +206,10 @@ export default function AdminDevices() {
                     {d.status === "offline" ? (
                       <span className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground">No signal</span>
                     ) : d.signal ? (
-                      <span className={`rounded-md px-2 py-1 text-xs font-medium capitalize ${SIGNAL_BADGE[d.signal]}`}>{d.signal}</span>
+                      <span className="flex flex-col items-start gap-1">
+                        <span className={`rounded-md px-2 py-1 text-xs font-medium capitalize ${SIGNAL_BADGE[d.signal]}`}>{d.signal}</span>
+                        {d.signal_dbm != null && <span className="text-xs text-muted-foreground">{d.signal_dbm} dBm</span>}
+                      </span>
                     ) : (
                       <span className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground">Not reported</span>
                     )}

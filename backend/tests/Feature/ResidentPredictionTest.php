@@ -66,6 +66,7 @@ class ResidentPredictionTest extends TestCase
             ->getJson('/api/resident/prediction')
             ->assertOk()
             ->assertJsonPath('data.status', 'ready')
+            ->assertJsonPath('data.data_source', 'live')
             ->assertJsonPath('data.method', '30-day daily-average scikit-learn LinearRegression')
             ->assertJsonPath('data.current_fill', 50);
 
@@ -136,6 +137,53 @@ class ResidentPredictionTest extends TestCase
         });
 
         $this->assertDatabaseCount('tank_readings', 4);
+    }
+
+    public function test_prediction_uses_simulated_history_when_latest_eligible_reading_is_simulated(): void
+    {
+        config([
+            'services.prediction.url' => 'http://127.0.0.1:8001',
+            'services.prediction.api_key' => 'test-prediction-key',
+            'services.prediction.timeout' => 5,
+        ]);
+        Http::fake([
+            '127.0.0.1:8001/forecast' => Http::response([
+                'data' => [
+                    'status' => 'insufficient_data',
+                    'message' => 'At least three readings from three separate days spanning two or more days are needed.',
+                    'current_fill' => 50,
+                    'daily_points' => 2,
+                    'readings_used' => 2,
+                    'days_observed' => 1,
+                    'history' => [],
+                    'fill_rate_per_day' => null,
+                    'trend_fit_percent' => null,
+                    'days_to_critical' => null,
+                    'predicted_critical_at' => null,
+                    'threshold_percentage' => 80,
+                    'as_of' => now()->toISOString(),
+                    'method' => '30-day daily-average scikit-learn LinearRegression',
+                ],
+            ]),
+        ]);
+        $resident = $this->approvedResident();
+        $system = SepticSystem::factory()->create(['user_id' => $resident->id]);
+        $this->addReading($system, 40, now()->subDays(2)->setTime(12, 0), 'simulated');
+        $this->addReading($system, 45, now()->subDay()->setTime(12, 0), 'sensor');
+        $this->addReading($system, 50, now()->setTime(12, 0), 'simulated');
+
+        $this->withToken('prediction-token')
+            ->getJson('/api/resident/prediction')
+            ->assertOk()
+            ->assertJsonPath('data.status', 'insufficient_data')
+            ->assertJsonPath('data.data_source', 'simulated');
+
+        Http::assertSent(function (Request $request): bool {
+            $this->assertCount(2, $request['history']);
+            $this->assertSame(2, array_sum(array_column($request['history'], 'readings_count')));
+
+            return $request->url() === 'http://127.0.0.1:8001/forecast';
+        });
     }
 
     public function test_missing_prediction_service_configuration_returns_clear_unavailable_response(): void

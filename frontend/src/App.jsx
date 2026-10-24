@@ -1,11 +1,13 @@
 import { Routes, Route, useLocation } from "react-router-dom";
 import Login from "./pages/Login.jsx";
+import ResetPassword from "./pages/ResetPassword.jsx";
 import Register from "./pages/Register.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import RealTimeMonitoring from "./pages/RealTimeMonitoring.jsx";
 import Predictions from "./pages/Predictions.jsx";
 import Complaints from "./pages/Complaints.jsx";
 import NewComplaint from "./pages/NewComplaint.jsx";
+import ComplaintPolicy from "./pages/ComplaintPolicy.jsx";
 import Maintain from "./pages/Maintain.jsx";
 import Alerts from "./pages/Alerts.jsx";
 import Profile from "./pages/Profile.jsx";
@@ -25,6 +27,7 @@ export default function App() {
     <div key={location.pathname} className="route-transition">
     <Routes location={location}>
       <Route path="/" element={<Login />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/register" element={<Register />} />
       <Route path="/terms" element={<Terms />} />
       <Route path="/privacy" element={<Privacy />} />
@@ -33,6 +36,7 @@ export default function App() {
       <Route path="/predict" element={<Predictions />} />
       <Route path="/complaints" element={<Complaints />} />
       <Route path="/complaints/new" element={<NewComplaint />} />
+      <Route path="/complaints/policy" element={<ComplaintPolicy />} />
       <Route path="/maintain" element={<Maintain />} />
       <Route path="/alerts" element={<Alerts />} />
       <Route path="/profile" element={<Profile />} />

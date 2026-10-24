@@ -79,12 +79,18 @@ export default function DevicePanel({ device, onClose, onSave }) {
                 <span className={`rounded-md px-2 py-1 text-xs font-medium capitalize ${STATUS_BADGE[device.status]}`}>{device.status}</span>
                 {offline ? (
                   <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">No signal</span>
-                ) : (
+                ) : device.signal ? (
                   <span className={`rounded-md px-2 py-1 text-xs font-medium capitalize ${SIGNAL_BADGE[device.signal]}`}>{device.signal} signal</span>
+                ) : (
+                  <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">Signal not reported</span>
                 )}
               </div>
 
               <div className="space-y-3 rounded-lg border border-border bg-background p-4 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Wi-Fi signal</span>
+                  <span>{device.signal_dbm == null ? "Not reported" : `${device.signal_dbm} dBm`}</span>
+                </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Battery</span>
                   {offline || device.battery == null ? (

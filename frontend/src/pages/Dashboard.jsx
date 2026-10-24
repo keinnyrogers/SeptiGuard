@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 import { Activity, ArrowRight, Bell, Bot, CalendarDays, CircleAlert, CircleGauge, Droplets, Eye, FileWarning, Home, LogOut, MapPin, Menu, RefreshCw, ShieldCheck, TriangleAlert, UserRound, Wrench } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
+import { BrandMark } from "@/components/BrandLogo";
 import NotificationPopover from "../components/NotificationPopover.jsx";
 import PairDeviceModal from "../components/PairDeviceModal.jsx";
 import ResidentEmptyPage from "../components/ResidentEmptyPage.jsx";
@@ -44,7 +45,7 @@ const STATUS_META = {
   critical: { label: "Critical", text: "text-danger", badge: "border-danger/30 bg-danger/10 text-danger", dot: "bg-danger" },
 };
 
-const NAV = [{icon:Home,label:"Dashboard",active:true},{icon:Activity,label:"Monitor",to:"/monitor"},{icon:Bot,label:"Predict",to:"/predict"},{icon:FileWarning,label:"Complaints",to:"/complaints"},{icon:Wrench,label:"Maintenance",to:"/maintain"},{icon:Bell,label:"Alerts",to:"/alerts"},{icon:UserRound,label:"Profile",to:"/profile"}];
+const NAV = [{icon:Home,label:"Dashboard",active:true},{icon:Activity,label:"Monitor",to:"/monitor"},{icon:Bot,label:"Predict",to:"/predict"},{icon:FileWarning,label:"Complaints",to:"/complaints"},{icon:Wrench,label:"Maintenance",to:"/maintain"},{icon:Bell,label:"Notifications",to:"/alerts"},{icon:UserRound,label:"Profile",to:"/profile"}];
 
 export default function Dashboard() {
   const { user, token, logout } = useAuth(); const navigate = useNavigate(); const [open,setOpen]=useState(false); const [pairModalOpen, setPairModalOpen] = useState(false); const [liveData, setLiveData] = useState(null); const [refreshKey, setRefreshKey] = useState(0); const [alertsRefreshKey, setAlertsRefreshKey] = useState(0); const [recentAlerts, setRecentAlerts] = useState([]); const [alertsLoading, setAlertsLoading] = useState(!user?.demo_mode && Boolean(token)); const [alertsError, setAlertsError] = useState(""); const [isRefreshing, setIsRefreshing] = useState(false); const [loading, setLoading] = useState(!user?.demo_mode); const [loadError, setLoadError] = useState(""); const first=user?.name?.split(" ")[0] ?? "Resident";
@@ -146,7 +147,7 @@ export default function Dashboard() {
   const meta = status ? STATUS_META[status] : null;
   const days = typeof data?.daysUntilFull === "number" ? data.daysUntilFull : null;
   const hasLastPumped = Boolean(data?.lastPumped);
-  const signOut=async()=>{await logout(); navigate("/");};
+  const signOut=async()=>{if(await logout()) navigate("/");};
   const retryTankLoad = () => {
     setLoadError("");
     setLoading(true);
@@ -167,7 +168,7 @@ export default function Dashboard() {
 
   return <div className="min-h-screen bg-background text-foreground lg:flex">
     <aside className={`${open?"flex":"hidden"} fixed inset-y-0 left-0 z-40 w-24 flex-col border-r border-border bg-card px-2 py-5 lg:flex`}>
-      <div className="mb-5 flex justify-center"><div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/40 bg-primary/10"><ShieldCheck className="h-5 w-5 text-primary"/></div></div>
+      <div className="mb-5 flex justify-center"><div className="flex h-11 w-11 items-center justify-center rounded-lg"><BrandMark className="h-8 w-8"/></div></div>
       <nav className="flex flex-1 flex-col gap-1">{NAV.map(x=><button key={x.label} onClick={()=>x.active?setOpen(false):navigate(x.to)} className={`relative flex h-14 flex-col items-center justify-center gap-1 rounded-md text-[10px] ${x.active?"bg-primary font-medium text-primary-foreground":"text-muted-foreground hover:bg-muted hover:text-foreground"}`}><x.icon className="h-4 w-4"/>{x.label}</button>)}</nav>
       <div className="flex flex-col items-center gap-2 border-t border-border pt-4"><ResidentAvatar /><button onClick={signOut} title="Sign out" className="p-2 text-muted-foreground hover:text-danger"><LogOut className="h-4 w-4"/></button></div>
     </aside>{open&&<button className="fixed inset-0 z-30 bg-background/80 lg:hidden" onClick={()=>setOpen(false)}/>}

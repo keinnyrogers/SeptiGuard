@@ -93,6 +93,7 @@ class AdminResidentApiTest extends TestCase
         $tank = SepticSystem::factory()->create([
             'user_id' => $resident->id,
             'device_id' => 'TNK-001',
+            'capacity_liters' => 2750,
         ]);
         TankReading::factory()->create([
             'septic_system_id' => $tank->id,
@@ -107,6 +108,7 @@ class AdminResidentApiTest extends TestCase
             ->assertJsonPath('data.summary.total_tanks', 1)
             ->assertJsonPath('data.summary.critical_tanks', 1)
             ->assertJsonPath('data.tanks.0.id', 'TNK-001')
+            ->assertJsonPath('data.tanks.0.capacity', 2750)
             ->assertJsonPath('data.tanks.0.level', 85)
             ->assertJsonPath('data.tanks.0.block', 3)
             ->assertJsonPath('data.tanks.0.lot', 12)
@@ -152,6 +154,7 @@ class AdminResidentApiTest extends TestCase
             'septic_system_id' => $tank->id,
             'measured_at' => now(),
             'status' => 'normal',
+            'wifi_rssi_dbm' => -58,
         ]);
         $complaint = Complaint::query()->create([
             'user_id' => $resident->id,
@@ -168,7 +171,9 @@ class AdminResidentApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.0.device_id', 'TNK-009')
             ->assertJsonPath('data.0.status', 'online')
-            ->assertJsonPath('data.0.firmware', '1.0.0');
+            ->assertJsonPath('data.0.firmware', '1.0.0')
+            ->assertJsonPath('data.0.signal', 'strong')
+            ->assertJsonPath('data.0.signal_dbm', -58);
 
         $this->withHeaders($headers)
             ->getJson('/api/admin/complaints')
@@ -213,6 +218,55 @@ class AdminResidentApiTest extends TestCase
                 'type' => 'complaint',
                 'title' => 'Open complaint '.$complaint->ticket_code,
             ]);
+    }
+
+    public function test_hoa_admin_can_mark_own_notifications_as_read(): void
+    {
+        $admin = $this->createApiUser('hoa_admin');
+        $otherAdmin = $this->createApiUser('hoa_admin');
+        $resident = $this->createApiUser('resident');
+        $complaint = $resident->complaints()->create([
+            'ticket_code' => 'CMP-READ-001',
+            'title' => 'Check tank cover',
+            'category' => 'septic_tank',
+            'description' => 'The tank cover needs inspection.',
+            'status' => 'pending',
+        ]);
+        $notificationId = 'complaint-'.$complaint->id;
+
+        $this->withHeader('Authorization', 'Bearer '.$this->tokenFor($admin))
+            ->getJson('/api/admin/notifications')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $notificationId)
+            ->assertJsonPath('data.0.unread', true);
+
+        $this->withHeader('Authorization', 'Bearer '.$this->tokenFor($admin))
+            ->postJson("/api/admin/notifications/{$notificationId}/read")
+            ->assertOk();
+
+        $this->withHeader('Authorization', 'Bearer '.$this->tokenFor($admin))
+            ->getJson('/api/admin/notifications')
+            ->assertOk()
+            ->assertJsonPath('data.0.unread', false);
+
+        $this->withHeader('Authorization', 'Bearer '.$this->tokenFor($otherAdmin))
+            ->getJson('/api/admin/notifications')
+            ->assertOk()
+            ->assertJsonPath('data.0.unread', true);
+
+        $this->assertDatabaseHas('admin_notification_reads', [
+            'admin_user_id' => $admin->id,
+            'notification_key' => $notificationId,
+        ]);
+    }
+
+    public function test_admin_cannot_mark_a_notification_that_is_not_currently_available_as_read(): void
+    {
+        $admin = $this->createApiUser('hoa_admin');
+
+        $this->withHeader('Authorization', 'Bearer '.$this->tokenFor($admin))
+            ->postJson('/api/admin/notifications/complaint-999999/read')
+            ->assertNotFound();
     }
 
     public function test_hoa_admin_can_register_device_without_optional_tank_details(): void

@@ -5,10 +5,10 @@ import {
   Users,
   FileText,
   Cpu,
-  ShieldCheck,
   LogOut,
   X,
 } from "lucide-react";
+import { BrandMark } from "@/components/BrandLogo";
 
 const NAV = [
   { icon: Gauge, label: "Dashboard", to: "/admin/dashboard" },
@@ -41,10 +41,10 @@ export function AdminSidebar({
     <aside className={`fixed inset-y-0 left-0 z-40 flex w-52 flex-col border-r border-border bg-card px-3 py-5 transition duration-200 ease-out lg:translate-x-0 lg:opacity-100 ${open ? "translate-x-0 opacity-100" : "-translate-x-full opacity-0 pointer-events-none lg:pointer-events-auto"}`}>
       <div className="mb-5 flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/15">
-            <ShieldCheck className="h-5 w-5 text-primary" />
+          <span className="flex h-9 w-9 items-center justify-center rounded-md">
+            <BrandMark className="h-8 w-8" />
           </span>
-          <strong className="font-display text-sm">SeptiGuard</strong>
+          <strong className="font-display text-sm">Septi<span className="text-primary">Guard</span></strong>
         </div>
         <button className="lg:hidden" onClick={() => setOpen(false)} aria-label="Close menu">
           <X className="h-4 w-4" />

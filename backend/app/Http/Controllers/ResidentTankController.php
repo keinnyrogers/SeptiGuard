@@ -12,10 +12,15 @@ class ResidentTankController extends Controller
         abort_unless($request->user()->account_status === 'approved', 403);
 
         $system = $request->user()->septicSystem;
+        $latestDesludging = $system?->latestDesludging;
         $reading = $system?->tankReadings()->latest('measured_at')->first();
-        $history = $system?->tankReadings()
-            ->where('measured_at', '>=', now()->subDays(90))
-            ->selectRaw('DATE(measured_at) as reading_date, AVG(fill_level_percentage) as fill_percentage, COUNT(*) as readings_count')
+        $historyQuery = $system?->tankReadings()
+            ->where('measured_at', '>=', now()->subDays(90));
+        if ($latestDesludging !== null) {
+            $historyQuery?->whereDate('measured_at', '>', $latestDesludging->performed_on);
+        }
+        $history = $historyQuery
+            ?->selectRaw('DATE(measured_at) as reading_date, AVG(fill_level_percentage) as fill_percentage, COUNT(*) as readings_count')
             ->groupByRaw('DATE(measured_at)')
             ->orderBy('reading_date')
             ->get()
@@ -34,6 +39,8 @@ class ResidentTankController extends Controller
                 'tank_height_cm' => $system?->tank_height_cm,
                 'installation_date' => $system?->installation_date?->toISOString(),
                 'last_maintenance_date' => $system?->last_maintenance_date?->toISOString(),
+                'last_service_date' => $latestDesludging?->performed_on?->toDateString()
+                    ?? $system?->last_maintenance_date?->toDateString(),
                 'reading' => $reading,
                 'history' => $history,
             ],

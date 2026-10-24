@@ -65,6 +65,12 @@ class AdminTankController extends Controller
             ->map(function (SepticSystem $tank): array {
                 $reading = $tank->latestTankReading;
                 $online = $reading?->measured_at?->greaterThanOrEqualTo(now()->subMinutes(15)) ?? false;
+                $rssi = $reading?->wifi_rssi_dbm;
+                $signal = $rssi === null ? null : match (true) {
+                    $rssi >= -60 => 'strong',
+                    $rssi >= -75 => 'moderate',
+                    default => 'weak',
+                };
 
                 return [
                     'id' => $tank->id,
@@ -72,7 +78,8 @@ class AdminTankController extends Controller
                     'resident' => $tank->user?->name,
                     'block_lot' => $tank->user?->residentProfile?->address,
                     'status' => $online ? 'online' : 'offline',
-                    'signal' => null,
+                    'signal' => $signal,
+                    'signal_dbm' => $rssi,
                     'battery' => null,
                     'last_reading_at' => $reading?->measured_at?->toISOString(),
                     'firmware' => $tank->firmware_version,
@@ -216,6 +223,7 @@ class AdminTankController extends Controller
             'forecast_status' => $forecast['status'],
             'days_to_critical' => $forecast['days_to_critical'],
             'installed' => $tank->installation_date?->toISOString(),
+            'capacity' => $tank->capacity_liters === null ? null : (float) $tank->capacity_liters,
             'location' => $tank->location,
             'lastDesludged' => $tank->latestDesludging?->performed_on?->toDateString(),
         ];

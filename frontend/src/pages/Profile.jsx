@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Activity, AtSign, Bell, Bot, Camera, Copy, FileWarning, Hash, Home, KeyRound, LogOut, Mail,
+  Activity, AtSign, Bell, Bot, Camera, Copy, FileWarning, Hash, Home, KeyRound, LoaderCircle, LogOut, Mail,
   MapPin, Menu, Phone, Save, ShieldCheck, ShieldQuestion, UserRound, Wrench,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
+import { BrandMark } from "@/components/BrandLogo";
 import {
   fetchResidentAccount,
   fetchResidentTankLatest,
@@ -13,6 +14,13 @@ import {
 import ResidentAvatar from "../components/ResidentAvatar.jsx";
 import ChangePasswordPanel from "../components/ChangePasswordPanel.jsx";
 import RequestInfoChangePanel from "../components/RequestInfoChangePanel.jsx";
+import {
+  fetchResidentPushStatus,
+  registerResidentPushToken,
+  removeResidentPushToken,
+} from "../api.js";
+import { isFirebaseMessagingConfigured } from "../lib/firebaseConfig.js";
+import { promptAppInstall, subscribeToInstallPrompt } from "../lib/pwaInstall.js";
 
 // Sample placeholder values only — replace with your Laravel API data later.
 const SAMPLE = {
@@ -40,9 +48,11 @@ const NAV = [
   { icon: Bot, label: "Predict", to: "/predict" },
   { icon: FileWarning, label: "Complaints", to: "/complaints" },
   { icon: Wrench, label: "Maintenance", to: "/maintain" },
-  { icon: Bell, label: "Alerts", to: "/alerts" },
+  { icon: Bell, label: "Notifications", to: "/alerts" },
   { icon: UserRound, label: "Profile", to: "/profile", active: true },
 ];
+
+const PUSH_TOKEN_STORAGE_KEY = "septiguard_fcm_token";
 
 export default function Profile() {
   const { user, token, logout, updateUser, profilePhotoUrl } = useAuth();
@@ -58,11 +68,23 @@ export default function Profile() {
   const photoUrl = demoMode ? demoPhotoUrl : profilePhotoUrl;
   const [photoError, setPhotoError] = useState("");
   const [accountRefreshError, setAccountRefreshError] = useState("");
+  const [profileLoading, setProfileLoading] = useState(!demoMode && Boolean(token));
   const [demoAddressSaved, setDemoAddressSaved] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const photoInput = useRef(null);
   const [address, setAddress] = useState(SAMPLE.address);
   const [prefs, setPrefs] = useState({ push: true, email: true });
+  const [pushConfigured, setPushConfigured] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushStatusLoading, setPushStatusLoading] = useState(true);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushProgress, setPushProgress] = useState("");
+  const [pushError, setPushError] = useState("");
+  const [canInstall, setCanInstall] = useState(false);
+  const [installMessage, setInstallMessage] = useState("");
+  const isApprovedResident = user?.role === "resident"
+    && user?.account_status === "approved"
+    && !demoMode;
 
   const name = user?.name ?? "Resident";
   const initials = name
@@ -73,7 +95,7 @@ export default function Profile() {
     .slice(0, 2)
     .toUpperCase() || "R";
   const soon = (what) => window.alert(`${what} will be connected in the next step.`);
-  const signOut = async () => { await logout(); navigate("/"); };
+  const signOut = async () => { if (await logout()) navigate("/"); };
   const handlePhotoChange = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -121,6 +143,9 @@ export default function Profile() {
       })
       .catch((error) => {
         if (active) setAccountRefreshError(error.message);
+      })
+      .finally(() => {
+        if (active) setProfileLoading(false);
       });
 
     return () => {
@@ -147,12 +172,88 @@ export default function Profile() {
     };
   }, [demoMode, token, tank]);
 
+  useEffect(() => subscribeToInstallPrompt(setCanInstall), []);
+
+  useEffect(() => {
+    if (!isApprovedResident || !token) return undefined;
+
+    let active = true;
+    fetchResidentPushStatus(token, window.localStorage.getItem(PUSH_TOKEN_STORAGE_KEY))
+      .then((status) => {
+        if (!active) return;
+        setPushConfigured(Boolean(status?.configured && isFirebaseMessagingConfigured()));
+        setPushEnabled(Boolean(status?.enabled));
+        setPushError("");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setPushConfigured(false);
+        setPushError(error.message);
+      })
+      .finally(() => {
+        if (active) setPushStatusLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isApprovedResident, token]);
+
+  const handlePushChange = async (enabled) => {
+    let accountPushDisabled = false;
+    setPushBusy(true);
+    setPushProgress("");
+    setPushError("");
+    try {
+      if (enabled) {
+        if (!isApprovedResident) throw new Error("Push notifications are available only to approved resident accounts.");
+        const { requestFirebasePushToken } = await import("../lib/firebase.js");
+        const pushToken = await requestFirebasePushToken(setPushProgress);
+        setPushProgress("Saving device registration to SeptiGuard…");
+        await registerResidentPushToken(token, pushToken);
+        window.localStorage.setItem(PUSH_TOKEN_STORAGE_KEY, pushToken);
+        setPushEnabled(true);
+      } else {
+        const pushToken = window.localStorage.getItem(PUSH_TOKEN_STORAGE_KEY);
+        if (pushToken) {
+          await removeResidentPushToken(token, pushToken);
+          window.localStorage.removeItem(PUSH_TOKEN_STORAGE_KEY);
+        }
+        setPushEnabled(false);
+        accountPushDisabled = true;
+        setPushProgress("Removing this browser's push subscription…");
+        const { deleteFirebasePushToken } = await import("../lib/firebase.js");
+        await deleteFirebasePushToken();
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not update push notification settings.";
+      const code = typeof error?.code === "string" ? ` (${error.code})` : "";
+      const cleanupWarning = accountPushDisabled
+        ? "Push notifications were disabled for this account, but this browser subscription could not be removed."
+        : "";
+      setPushError(cleanupWarning || (pushProgress ? `${pushProgress} ${message}${code}` : `${message}${code}`));
+    } finally {
+      setPushBusy(false);
+      setPushProgress("");
+    }
+  };
+
+  const handleInstall = async () => {
+    setInstallMessage("");
+    try {
+      const accepted = await promptAppInstall();
+      setInstallMessage(accepted ? "SeptiGuard was added to your device." : "Installation was cancelled.");
+    } catch (error) {
+      setInstallMessage(error.message);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground lg:flex">
       <aside className={`${open ? "flex" : "hidden"} fixed inset-y-0 left-0 z-40 w-24 flex-col border-r border-border bg-card px-2 py-5 lg:flex`}>
         <div className="mb-5 flex justify-center">
-          <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/40 bg-primary/10">
-            <ShieldCheck className="h-5 w-5 text-primary" />
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg">
+            <BrandMark className="h-8 w-8" />
           </div>
         </div>
         <nav className="flex flex-1 flex-col gap-1">
@@ -196,6 +297,18 @@ export default function Profile() {
         </header>
 
         <main className="mx-auto max-w-[1440px] space-y-5 p-4 sm:p-7">
+          {profileLoading ? (
+            <section
+              className="flex min-h-72 flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card/50 px-6 py-12 text-center"
+              role="status"
+              aria-live="polite"
+              aria-busy="true"
+            >
+              <span className="h-10 w-10 animate-spin rounded-full border-2 border-primary/25 border-t-primary" aria-hidden="true" />
+              <h2 className="mt-4 font-display text-lg font-semibold">Loading your profile…</h2>
+              <p className="mt-2 text-sm text-muted-foreground">Getting your account details and preferences.</p>
+            </section>
+          ) : <>
           {demoMode && <p className="w-fit rounded border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-primary">Demo data</p>}
 
           <div className="grid gap-5 xl:grid-cols-[0.75fr_1.6fr]">
@@ -307,14 +420,53 @@ export default function Profile() {
               <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
                 <h2 className="flex items-center gap-2 font-display font-semibold"><Bell className="h-4 w-4 text-primary" /> Preferences</h2>
                 <p className="mt-1 text-xs text-muted-foreground">Customize how you receive updates from the portal</p>
-                {demoMode ? <div className="mt-4 space-y-2">
-                  <Toggle icon={Bell} title="Push Notifications" detail="Alerts about tank levels and complaints" checked={prefs.push} onChange={(v) => setPrefs({ ...prefs, push: v })} />
-                  <Toggle icon={Mail} title="Email Digest" detail="Weekly summary every Monday" checked={prefs.email} onChange={(v) => setPrefs({ ...prefs, email: v })} />
-                </div> : <>
-                  <p className="mt-4 rounded-md border border-border bg-muted/30 p-4 text-xs text-muted-foreground">
-                    Portal alerts appear in your Alerts page. Email notifications are sent to {user?.email ?? "your account email"} when email delivery is configured by the HOA.
-                  </p>
-                </>}
+                <div className="mt-4 space-y-2">
+                  {demoMode ? <>
+                    <Toggle icon={Bell} title="Push Notifications" detail="Demo preference only; no device notifications are sent" checked={prefs.push} onChange={(v) => setPrefs({ ...prefs, push: v })} />
+                    <Toggle icon={Mail} title="Email Digest" detail="Weekly summary every Monday" checked={prefs.email} onChange={(v) => setPrefs({ ...prefs, email: v })} />
+                  </> : <>
+                    {isApprovedResident ? pushStatusLoading ? (
+                      <div className="flex items-center gap-2 rounded-md border border-border bg-muted/30 p-4 text-xs text-muted-foreground" role="status" aria-live="polite" aria-busy="true">
+                        <LoaderCircle className="h-4 w-4 animate-spin text-primary" aria-hidden="true" />
+                        Checking push notification setup…
+                      </div>
+                    ) : pushConfigured || pushEnabled ? (
+                      <Toggle
+                        icon={Bell}
+                        title="Push Notifications"
+                        detail={pushBusy
+                          ? pushProgress || "Starting notification setup…"
+                          : "Tank and complaint updates on this device"}
+                        checked={pushEnabled}
+                        disabled={pushBusy}
+                        loading={pushBusy}
+                        onChange={handlePushChange}
+                      />
+                    ) : (
+                      <p className="rounded-md border border-border bg-muted/30 p-4 text-xs text-muted-foreground">
+                        Push notifications are not configured yet. Portal alerts remain available on your Alerts page.
+                      </p>
+                    ) : (
+                      <p className="rounded-md border border-border bg-muted/30 p-4 text-xs text-muted-foreground">
+                        Push notifications are available after your resident account is approved.
+                      </p>
+                    )}
+                    {pushError && <p role="alert" className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">{pushError}</p>}
+                    <p className="rounded-md border border-border bg-muted/30 p-4 text-xs text-muted-foreground">
+                      Portal alerts appear in your Alerts page. Email notifications are sent to {user?.email ?? "your account email"} when email delivery is configured by the HOA.
+                    </p>
+                  </>}
+                  <div className="flex flex-col items-start gap-3 rounded-md border border-border bg-muted/30 p-3 sm:flex-row sm:items-center">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">Install SeptiGuard</p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">Add the portal to your home screen for an app-like experience.</p>
+                    </div>
+                    {canInstall
+                      ? <button type="button" onClick={handleInstall} className="shrink-0 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground">Install app</button>
+                      : <span className="w-full text-left text-[11px] text-muted-foreground sm:w-auto sm:shrink-0 sm:text-right">Use your browser menu to install or add to home screen.</span>}
+                  </div>
+                  {installMessage && <p role="status" className="text-xs text-muted-foreground">{installMessage}</p>}
+                </div>
               </section>
 
               <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
@@ -331,6 +483,7 @@ export default function Profile() {
               </section>
             </div>
           </div>
+          </>}
         </main>
       </div>
       <ChangePasswordPanel open={passwordPanelOpen} onClose={() => setPasswordPanelOpen(false)} token={token} />
@@ -363,8 +516,8 @@ function ReadField({ icon: Icon, label, value }) {
 function EditField({ label, value, onChange }) {
   return <div><label className="text-xs text-muted-foreground">{label}</label><input value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} className="mt-1.5 h-11 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary" /></div>;
 }
-function Toggle({ icon: Icon, title, detail, checked, onChange, disabled = false }) {
-  return <div className="flex items-center gap-3 rounded-md border border-border bg-muted/30 p-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10"><Icon className="h-4 w-4 text-primary" /></div><div className="min-w-0 flex-1"><p className="text-sm font-medium">{title}</p><p className="mt-0.5 text-[11px] text-muted-foreground">{detail}</p></div><button type="button" role="switch" aria-checked={checked} aria-label={title} disabled={disabled} onClick={() => onChange(!checked)} className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-wait disabled:opacity-60 ${checked ? "bg-primary" : "bg-muted"}`}><span className={`absolute top-0.5 h-5 w-5 rounded-full bg-background transition-all ${checked ? "left-[22px]" : "left-0.5"}`} /></button></div>;
+function Toggle({ icon: Icon, title, detail, checked, onChange, disabled = false, loading = false }) {
+  return <div className="flex items-center gap-3 rounded-md border border-border bg-muted/30 p-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10"><Icon className="h-4 w-4 text-primary" /></div><div className="min-w-0 flex-1"><p className="text-sm font-medium">{title}</p><p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground" aria-live={loading ? "polite" : undefined}>{loading && <LoaderCircle className="h-3 w-3 animate-spin text-primary" aria-hidden="true" />}{detail}</p></div><button type="button" role="switch" aria-checked={checked} aria-label={title} disabled={disabled} onClick={() => onChange(!checked)} className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-wait disabled:opacity-60 ${checked ? "bg-primary" : "bg-muted"}`}><span className={`absolute top-0.5 h-5 w-5 rounded-full bg-background transition-all ${checked ? "left-[22px]" : "left-0.5"}`} /></button></div>;
 }
 function Row({ icon: Icon, title, detail, action, danger }) {
   return <div className={`flex flex-wrap items-center gap-3 rounded-md border p-3 ${danger ? "border-danger/30 bg-danger/10" : "border-border bg-muted/30"}`}><div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${danger ? "bg-danger/15" : "bg-primary/10"}`}><Icon className={`h-4 w-4 ${danger ? "text-danger" : "text-primary"}`} /></div><div className="min-w-0 flex-1"><p className="text-sm font-medium">{title}</p><p className="mt-0.5 text-[11px] text-muted-foreground">{detail}</p></div>{action}</div>;

@@ -119,8 +119,7 @@ export default function AdminTanks() {
         user={user}
         active="Tanks"
         signOut={async () => {
-          await logout();
-          navigate("/");
+          if (await logout()) navigate("/");
         }}
       />
       {open && (
@@ -325,6 +324,7 @@ export default function AdminTanks() {
             />
           )}
           <DispatchModal
+            key={dispatchTank?.system_id ?? "closed"}
             tank={dispatchTank}
             onClose={() => setDispatchTank(null)}
             onConfirm={({ tankId, scheduledFor }) => dispatchAdminDesludging(token, tankId, scheduledFor)}

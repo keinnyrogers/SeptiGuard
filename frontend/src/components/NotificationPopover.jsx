@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { ArrowRight, Bell, Bot, Check, CircleAlert, FileWarning, Info, MessageSquare, TriangleAlert, Zap } from "lucide-react";
-import { fetchResidentNotifications, markResidentNotificationsRead } from "../api.js";
+import { fetchResidentNotifications, markResidentNotificationRead, markResidentNotificationsRead } from "../api.js";
 
 const SAMPLE_NOTIFICATIONS = [
   { icon: FileWarning, tone: "text-warning", title: "Tank level reached 70%", detail: "Consider scheduling maintenance soon.", time: "2h", unread: true },
@@ -25,6 +25,7 @@ export default function NotificationPopover({ token, onViewAll, demoMode = false
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
   const [markingRead, setMarkingRead] = useState(false);
+  const [markingId, setMarkingId] = useState(null);
   const notifications = demoMode ? sampleNotifications : realNotifications;
   const ref = useRef(null);
   const unread = notifications.filter((n) => demoMode ? n.unread : !n.is_read).length;
@@ -76,6 +77,26 @@ export default function NotificationPopover({ token, onViewAll, demoMode = false
     setMarkingRead(false);
   };
 
+  const markOneRead = async (notificationId) => {
+    setActionError("");
+    setMarkingId(notificationId);
+    if (demoMode) {
+      setSampleNotifications((previous) => previous.map((item) =>
+        item.title === notificationId ? { ...item, unread: false } : item,
+      ));
+    } else {
+      try {
+        await markResidentNotificationRead(token, notificationId);
+        setRealNotifications((previous) => previous.map((item) =>
+          item.id === notificationId ? { ...item, is_read: true } : item,
+        ));
+      } catch (markError) {
+        setActionError(markError.message);
+      }
+    }
+    setMarkingId(null);
+  };
+
   useEffect(() => {
     if (!open) return;
     const onDown = (e) => {
@@ -125,7 +146,7 @@ export default function NotificationPopover({ token, onViewAll, demoMode = false
               const Icon = meta.icon;
               const isUnread = demoMode ? n.unread : !n.is_read;
               return (
-              <li key={n.id ?? n.title} className={`flex gap-3 px-4 py-3 ${isUnread ? "bg-primary/5" : ""}`}>
+              <li key={n.id ?? n.title} className={`flex items-start gap-3 px-4 py-3 ${isUnread ? "bg-primary/5" : ""}`}>
                 <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${meta.tone}`} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
@@ -137,6 +158,13 @@ export default function NotificationPopover({ token, onViewAll, demoMode = false
                   </div>
                   <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{n.detail}</p>
                 </div>
+                {isUnread && <button
+                  type="button"
+                  onClick={() => markOneRead(n.id ?? n.title)}
+                  disabled={markingId === (n.id ?? n.title) || markingRead}
+                  aria-label={`Mark ${n.title} as read`}
+                  className="mt-0.5 flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/10 disabled:opacity-50"
+                ><Check className="h-3.5 w-3.5" /><span>Mark read</span></button>}
               </li>
               );
             })}
