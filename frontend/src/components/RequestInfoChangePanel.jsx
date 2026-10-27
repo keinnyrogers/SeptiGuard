@@ -7,7 +7,7 @@ const FIELDS = [
   { value: "name", label: "Full Name" },
   { value: "email", label: "Email Address" },
   { value: "phone", label: "Phone Number" },
-  { value: "address", label: "Registered Address" },
+  { value: "address", label: "House Number" },
   { value: "household", label: "Household Members" },
   { value: "other", label: "Other" },
 ];

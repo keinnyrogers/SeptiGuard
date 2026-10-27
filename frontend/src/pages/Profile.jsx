@@ -21,6 +21,7 @@ import {
 } from "../api.js";
 import { isFirebaseMessagingConfigured } from "../lib/firebaseConfig.js";
 import { promptAppInstall, subscribeToInstallPrompt } from "../lib/pwaInstall.js";
+import { formatResidentAddress } from "@/lib/addresses";
 
 // Sample placeholder values only — replace with your Laravel API data later.
 const SAMPLE = {
@@ -337,7 +338,7 @@ export default function Profile() {
                 </div>
                 {photoError && <p role="alert" className="mt-2 text-xs text-danger">{photoError}</p>}
                 <h2 className="mt-4 font-display text-lg font-bold">{name}</h2>
-                <p className="mt-1 text-xs text-muted-foreground">Resident · {demoMode ? SAMPLE.blkLot : (profile?.address ?? "Address not set")}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Resident · {demoMode ? SAMPLE.blkLot : (formatResidentAddress(profile?.address ?? user?.address) ?? "Address not set")}</p>
                 <div className="mt-3 flex flex-wrap justify-center gap-2">
                   <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[10px] font-medium text-primary"><ShieldCheck className="h-3 w-3" /> {user?.account_status === "approved" ? "HOA approved" : "Pending approval"}</span>
                   {demoMode && <span className="rounded-full bg-muted px-3 py-1 text-[10px] text-muted-foreground">{SAMPLE.memberSince}</span>}
@@ -414,7 +415,7 @@ export default function Profile() {
                   <EditField label="Subdivision" value={address.subdivision} onChange={(v) => { setAddress({ ...address, subdivision: v }); setDemoAddressSaved(false); }} />
                   <EditField label="City" value={address.city} onChange={(v) => { setAddress({ ...address, city: v }); setDemoAddressSaved(false); }} />
                   <EditField label="ZIP Code" value={address.zip} onChange={(v) => { setAddress({ ...address, zip: v }); setDemoAddressSaved(false); }} />
-                </div> : <div className="mt-5 rounded-md border border-border bg-muted/30 p-4"><p className="text-xs text-muted-foreground">Registered address</p><p className="mt-1 text-sm font-medium">{profile?.address ?? user?.address ?? "No address saved"}</p><button type="button" onClick={() => setInfoChangePanelOpen(true)} className="mt-3 text-xs font-medium text-primary hover:underline">Request an address change through the HOA</button></div>}
+                </div> : <div className="mt-5 rounded-md border border-border bg-muted/30 p-4"><p className="text-xs text-muted-foreground">Registered address</p><p className="mt-1 text-sm font-medium">{formatResidentAddress(profile?.address ?? user?.address) ?? "No address saved"}</p><button type="button" onClick={() => setInfoChangePanelOpen(true)} className="mt-3 text-xs font-medium text-primary hover:underline">Request an address change through the HOA</button></div>}
               </section>
 
               <section className="rounded-lg border border-border bg-card p-5 sm:p-6">

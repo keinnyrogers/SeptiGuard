@@ -170,9 +170,7 @@ function createForecastViewData(forecast) {
         title: "Plan maintenance",
         badge: "ESTIMATE",
         tone: "urgent",
-        detail: forecast.data_source === "simulated"
-          ? `Simulation only: the trend reaches 80% around ${predictedFullText}. This is not a real service recommendation.`
-          : `The trend reaches 80% around ${predictedFullText}. This is an estimate, not a guarantee.`,
+        detail: `The trend is estimated to reach 80% around ${predictedFullText}. This is not a guaranteed forecast or service recommendation.`,
       },
     ] : [],
     insights: [
@@ -247,6 +245,7 @@ export default function Predictions() {
     ],
   };
   const isSimulatedForecast = !user?.demo_mode && forecast?.data_source === "simulated";
+  const hasLinkedSensor = !user?.demo_mode && Boolean(forecast) && forecast.status !== "no_sensor";
 
   const signOut = async () => { if (await logout()) navigate("/"); };
 
@@ -338,19 +337,16 @@ export default function Predictions() {
         </header>
 
         <main className="mx-auto max-w-[1440px] space-y-5 p-4 sm:p-7">
-          <p className="text-xs text-muted-foreground">
-            {user?.demo_mode
-              ? "Simulated demo projection — not a real forecast"
-              : isSimulatedForecast
-                ? "Simulation only — based on simulated readings, not a real forecast or service recommendation"
-                : "A linear-regression estimate from recent readings — not a guarantee"}
-          </p>
-
-          {isSimulatedForecast && (
-            <div role="status" className="rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-xs text-warning">
-              <strong>SIMULATED DATA — NOT A REAL PREDICTION.</strong>{" "}
-              This estimate uses simulated test readings.
-            </div>
+          {hasLinkedSensor && (
+            <>
+              <p className="text-xs text-muted-foreground">
+                Forecasts are estimates based on recent tank readings, not a guarantee.
+              </p>
+              <div role="status" className="rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-xs text-warning">
+                <strong>ESTIMATE ONLY — NOT A GUARANTEED FORECAST OR SERVICE RECOMMENDATION.</strong>{" "}
+                Based on available tank readings.
+              </div>
+            </>
           )}
 
           <div className="grid gap-5 xl:grid-cols-[1.35fr_1fr]">

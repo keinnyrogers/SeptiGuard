@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { CheckCircle2, Droplets, MapPin, User, X } from "lucide-react";
 import DatePicker from "@/components/DatePicker";
+import { formatResidentAddress } from "@/lib/addresses";
 
 function today() {
   const date = new Date();
@@ -67,7 +68,7 @@ export default function DispatchModal({ tank, onClose, onConfirm }) {
             </p>
             <p className="flex items-center gap-2 text-muted-foreground">
               <MapPin className="h-3.5 w-3.5" />
-              {tank.address ?? "—"}
+              {formatResidentAddress(tank.address) ?? "Address not set"}
             </p>
             <p className="flex items-center gap-2">
               <span className="text-muted-foreground">Current fill:</span>

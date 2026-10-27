@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { X, Mail, Phone, MapPin, Gauge, Pencil } from "lucide-react";
 import { CATEGORY_LABELS, STATUS_LABELS } from "@/data/complaints";
+import { formatResidentAddress } from "@/lib/addresses";
 
 const ACCOUNT_BADGE = {
   pending: "bg-warning/15 text-warning",
@@ -91,7 +92,7 @@ export default function ResidentPanel({ resident, mode = "view", onClose, onSave
                 <div className="space-y-2 text-sm">
                   <p className="flex items-center gap-2 text-muted-foreground"><Mail className="h-4 w-4" />{resident.email}</p>
                   <p className="flex items-center gap-2 text-muted-foreground"><Phone className="h-4 w-4" />{resident.phone}</p>
-                  <p className="flex items-center gap-2 text-muted-foreground"><MapPin className="h-4 w-4" />{resident.block_lot}</p>
+                  <p className="flex items-center gap-2 text-muted-foreground"><MapPin className="h-4 w-4" />{formatResidentAddress(resident.block_lot) ?? "Address not set"}</p>
                 </div>
               </section>
 
@@ -196,7 +197,7 @@ export default function ResidentPanel({ resident, mode = "view", onClose, onSave
                 ["name", "Full name", "text"],
                 ["email", "Email", "email"],
                 ["phone", "Phone", "tel"],
-                ["block_lot", "Block / Lot", "text"],
+                ["block_lot", "House Number", "text"],
               ].map(([k, label, type]) => (
                 <label key={k} className="block text-xs text-muted-foreground">
                   {label}

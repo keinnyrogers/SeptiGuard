@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Users, Cpu, UserPlus, AlertTriangle, Pencil, Eye, Check, X, Menu } from "lucide-react";
 import { AdminSidebar } from "@/components/AdminSidebar";
+import { formatResidentAddress } from "@/lib/addresses";
 import ResidentPanel from "@/components/ResidentPanel";
 import {
   Dialog,
@@ -56,6 +57,7 @@ export default function AdminResidents() {
   const [residents, setResidents] = useState([]);
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState("all");
+  const [activeSection, setActiveSection] = useState("residents");
   const [menuOpen, setMenuOpen] = useState(false);
   const [selectedResident, setSelectedResident] = useState(null);
   const [panelMode, setPanelMode] = useState("view");
@@ -69,6 +71,8 @@ export default function AdminResidents() {
   const [reviewingRequestId, setReviewingRequestId] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
+  const [residentToDeactivate, setResidentToDeactivate] = useState(null);
+  const [deactivationError, setDeactivationError] = useState("");
   const [creatingResident, setCreatingResident] = useState(false);
   const [createResidentError, setCreateResidentError] = useState("");
   const [createResidentSuccess, setCreateResidentSuccess] = useState("");
@@ -131,6 +135,7 @@ export default function AdminResidents() {
     c.sensors = residents.filter((r) => r.tank_status !== null).length;
     return c;
   }, [residents]);
+  const pendingInformationRequests = informationRequests.filter((request) => request.status === "pending").length;
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -168,14 +173,14 @@ export default function AdminResidents() {
   }
 
   async function deactivateResident(resident) {
-    if (!window.confirm(`Deactivate ${resident.name}? Their device will be unpaired, but their history will be kept.`)) return;
     setUpdatingId(resident.id);
-    setApprovalError("");
+    setDeactivationError("");
     try {
       const result = await deactivateAdminResident(token, resident.id);
       setResidents((prev) => prev.map((item) => (item.id === resident.id ? result.data : item)));
+      setResidentToDeactivate(null);
     } catch (error) {
-      setApprovalError(error.message);
+      setDeactivationError(error.message);
     } finally {
       setUpdatingId(null);
     }
@@ -255,7 +260,7 @@ export default function AdminResidents() {
         user={user}
         active="Residents"
         signOut={async () => {
-          if (await logout()) navigate("/");
+          if (await logout()) navigate("/admin/login");
         }}
       />
       <main className="min-w-0 flex-1 lg:ml-52">
@@ -267,12 +272,48 @@ export default function AdminResidents() {
               <h1 className="mt-1 font-display text-lg font-bold sm:text-xl">Resident &amp; Household Management</h1>
             </div>
           </div>
-          <button type="button" onClick={() => { setCreateResidentSuccess(""); setCreateOpen(true); }} className="flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:opacity-90 sm:h-10 sm:gap-2 sm:px-4 sm:text-sm">
-            <UserPlus className="h-4 w-4" /> <span className="whitespace-nowrap">Add Resident</span>
-          </button>
+          {activeSection === "residents" && (
+            <button type="button" onClick={() => { setCreateResidentSuccess(""); setCreateOpen(true); }} className="flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:opacity-90 sm:h-10 sm:gap-2 sm:px-4 sm:text-sm">
+              <UserPlus className="h-4 w-4" /> <span className="whitespace-nowrap">Add Resident</span>
+            </button>
+          )}
         </header>
         <div className="px-5 py-6 md:px-8">
 
+        <div className="mb-6 flex flex-wrap gap-2 border-b border-border">
+          <button
+            type="button"
+            aria-pressed={activeSection === "residents"}
+            onClick={() => setActiveSection("residents")}
+            className={`border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+              activeSection === "residents"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Residents
+          </button>
+          <button
+            type="button"
+            aria-pressed={activeSection === "requests"}
+            onClick={() => setActiveSection("requests")}
+            className={`flex items-center gap-2 border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+              activeSection === "requests"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Information change requests
+            {pendingInformationRequests > 0 && (
+              <span className="rounded-full bg-warning/15 px-2 py-0.5 text-xs text-warning">
+                {pendingInformationRequests}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {activeSection === "residents" && (
+          <>
         {createResidentSuccess && <p role="status" className="mt-2 rounded-md border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">{createResidentSuccess}</p>}
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -288,7 +329,7 @@ export default function AdminResidents() {
 
         <div className="relative mt-6">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by resident name, block/lot, or tank ID..." className={`${field} h-11 bg-card pl-9`} />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by resident name, house number, or tank ID..." className={`${field} h-11 bg-card pl-9`} />
         </div>
 
         <div className="mt-4 flex flex-wrap gap-1 rounded-lg border border-border bg-card p-1">
@@ -305,7 +346,7 @@ export default function AdminResidents() {
           <table className="w-full min-w-[1000px] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                {["Resident", "Block/Lot", "Tank ID", "Fill Level", "Account Status", "Tank Status", "Last Activity", "Actions"].map((h) => (
+                {["Resident", "Address", "Tank ID", "Fill Level", "Account Status", "Tank Status", "Last Activity", "Actions"].map((h) => (
                   <th key={h} className={`px-4 py-3 font-medium ${h === "Actions" ? "text-right" : ""}`}>{h}</th>
                 ))}
               </tr>
@@ -321,7 +362,7 @@ export default function AdminResidents() {
                       <div><p className="font-medium">{r.name}</p><p className="text-xs text-muted-foreground">{r.role}{r.status === "approved" && !r.is_active && " · Inactive"}</p></div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs">{r.block_lot}</td>
+                  <td className="px-4 py-3 text-xs">{formatResidentAddress(r.block_lot) ?? "Address not set"}</td>
                   <td className="px-4 py-3 font-mono text-xs text-primary">{r.tank_id ?? "—"}</td>
                   <td className="px-4 py-3">
                     {r.fill_level == null ? <span className="text-xs text-muted-foreground">No sensor</span> : (
@@ -379,7 +420,10 @@ export default function AdminResidents() {
                             <button
                               type="button"
                               disabled={updatingId === r.id}
-                              onClick={() => deactivateResident(r)}
+                              onClick={() => {
+                                setDeactivationError("");
+                                setResidentToDeactivate(r);
+                              }}
                               className="flex items-center gap-1 rounded-md bg-danger/15 px-2.5 py-1 text-xs font-medium text-danger hover:bg-danger/25 disabled:opacity-50"
                             >
                               <X className="h-3.5 w-3.5" />Deactivate
@@ -406,8 +450,11 @@ export default function AdminResidents() {
           </table>
           <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">{token && loading ? "Loading residents…" : token && !loadError ? `Showing ${visible.length} of ${residents.length} residents` : ""}</p>
         </div>
+          </>
+        )}
 
-        <section className="mt-8 overflow-hidden rounded-lg border border-border bg-card">
+        {activeSection === "requests" && (
+        <section className="overflow-hidden rounded-lg border border-border bg-card">
           <div className="border-b border-border px-4 py-4">
             <h2 className="font-display text-base font-semibold">Information change requests</h2>
             <p className="mt-1 text-xs text-muted-foreground">Approving a request updates the resident account. “Other” requests should be handled manually before marking resolved.</p>
@@ -473,6 +520,7 @@ export default function AdminResidents() {
             </ul>
           )}
         </section>
+        )}
         </div>
       </main>
 
@@ -507,8 +555,9 @@ export default function AdminResidents() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <label htmlFor="new-resident-address" className="text-sm font-medium">Household address</label>
-                <input id="new-resident-address" autoComplete="street-address" required maxLength={255} value={newResident.address} onChange={(event) => setNewResident((current) => ({ ...current, address: event.target.value }))} className={field} />
+                <label htmlFor="new-resident-address" className="text-sm font-medium">House number</label>
+                <input id="new-resident-address" autoComplete="off" required maxLength={60} placeholder="e.g. 12" value={newResident.address} onChange={(event) => setNewResident((current) => ({ ...current, address: event.target.value }))} className={field} />
+                <p className="mt-1 text-xs text-muted-foreground">The HOA address is added automatically.</p>
               </div>
               <div className="space-y-2">
                 <label htmlFor="new-resident-phone" className="text-sm font-medium">Contact number</label>
@@ -534,6 +583,59 @@ export default function AdminResidents() {
               <Button type="submit" disabled={creatingResident}>{creatingResident ? "Creating…" : "Create approved account"}</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={residentToDeactivate !== null}
+        onOpenChange={(open) => {
+          if (!open && updatingId === null) {
+            setResidentToDeactivate(null);
+            setDeactivationError("");
+          }
+        }}
+      >
+        <DialogContent className="border-border bg-card sm:max-w-md">
+          <DialogHeader>
+            <span className="mb-1 flex h-11 w-11 items-center justify-center rounded-full bg-danger/10 text-danger">
+              <AlertTriangle className="h-5 w-5" />
+            </span>
+            <DialogTitle className="font-display">Deactivate resident account?</DialogTitle>
+            <DialogDescription>
+              {residentToDeactivate && (
+                <>
+                  <span className="font-medium text-foreground">{residentToDeactivate.name}</span> will no longer be able to sign in.
+                  Their tank device will be unpaired, but their account history and records will be kept.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          {deactivationError && (
+            <p role="alert" className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              {deactivationError}
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={updatingId !== null}
+              onClick={() => {
+                setResidentToDeactivate(null);
+                setDeactivationError("");
+              }}
+            >
+              Keep account
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={!residentToDeactivate || updatingId === residentToDeactivate.id}
+              onClick={() => residentToDeactivate && deactivateResident(residentToDeactivate)}
+            >
+              {residentToDeactivate && updatingId === residentToDeactivate.id ? "Deactivating…" : "Deactivate account"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { X, Cpu, MapPin, User, Save } from "lucide-react";
 import { LOW_BATTERY_THRESHOLD } from "@/data/devices";
+import { formatResidentAddress } from "@/lib/addresses";
 
 const STATUS_BADGE = {
   online: "bg-success/15 text-success",
@@ -118,7 +119,7 @@ export default function DevicePanel({ device, onClose, onSave }) {
             <section className="space-y-3">
               <h3 className="text-sm font-semibold">Household assignment</h3>
               <p className="flex items-center gap-2 text-sm text-muted-foreground"><User className="h-4 w-4" />{device.resident}</p>
-              <p className="flex items-center gap-2 text-sm text-muted-foreground"><MapPin className="h-4 w-4" />{device.block_lot}</p>
+              <p className="flex items-center gap-2 text-sm text-muted-foreground"><MapPin className="h-4 w-4" />{formatResidentAddress(device.block_lot) ?? "Address not set"}</p>
 
               <label className="block text-xs text-muted-foreground">
                 Resident name
@@ -131,7 +132,7 @@ export default function DevicePanel({ device, onClose, onSave }) {
                 />
               </label>
               <label className="block text-xs text-muted-foreground">
-                Block / Lot
+                House Number
                 <input
                   type="text"
                   required

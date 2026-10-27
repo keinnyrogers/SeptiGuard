@@ -5,6 +5,7 @@ import { AdminSidebar } from "@/components/AdminSidebar";
 import AdminNotificationPopover from "@/components/AdminNotificationPopover";
 import TankPanel from "@/components/TankPanel";
 import DispatchModal from "@/components/DispatchModal";
+import { COMMUNITY_ADDRESS, formatResidentAddress } from "@/lib/addresses";
 import { useAuth } from "../context/AuthContext.jsx";
 import { dispatchAdminDesludging, fetchAdminTanks, recordAdminDesludging } from "../api.js";
 
@@ -32,7 +33,7 @@ export default function AdminTanks() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [blockFilter, setBlockFilter] = useState("all");
+  const [addressFilter, setAddressFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [selectedTank, setSelectedTank] = useState(null);
   const [dispatchTank, setDispatchTank] = useState(null);
@@ -74,19 +75,22 @@ export default function AdminTanks() {
     const q = query.trim().toLowerCase();
     return tanks.filter((t) => {
       if (statusFilter !== "all" && t.status !== statusFilter) return false;
-      if (blockFilter !== "all" && t.block !== Number(blockFilter)) return false;
+      if (addressFilter !== "all" && t.address !== addressFilter) return false;
       if (q) {
-        const hay = `${t.id} ${t.resident} Blk ${t.block} Lot ${t.lot}`.toLowerCase();
+        const hay = `${t.id} ${t.resident} ${t.address ?? ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [tanks, query, statusFilter, blockFilter]);
+  }, [tanks, query, statusFilter, addressFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const safePage = Math.min(page, totalPages);
   const pageItems = filtered.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE);
-  const blocks = useMemo(() => [...new Set(tanks.map((t) => t.block).filter(Boolean))].sort((a, b) => a - b), [tanks]);
+  const houseNumbers = useMemo(
+    () => [...new Set(tanks.map((tank) => tank.address?.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+    [tanks],
+  );
 
   async function handleRecordDesludging(performedOn) {
     if (!selectedTank) return;
@@ -119,7 +123,7 @@ export default function AdminTanks() {
         user={user}
         active="Tanks"
         signOut={async () => {
-          if (await logout()) navigate("/");
+          if (await logout()) navigate("/admin/login");
         }}
       />
       {open && (
@@ -160,7 +164,7 @@ export default function AdminTanks() {
               <MapPin className="h-4 w-4 text-primary" />
               <div>
                 <p className="text-[8px] uppercase text-muted-foreground">Location</p>
-                <p className="text-[10px]">Sitio Broadway, Antipolo</p>
+                <p className="text-[10px]">{COMMUNITY_ADDRESS}</p>
               </div>
             </div>
           </section>
@@ -176,7 +180,7 @@ export default function AdminTanks() {
                     setQuery(e.target.value);
                     setPage(1);
                   }}
-                  placeholder="Search by tank ID, resident, or block/lot..."
+                  placeholder="Search by tank ID, resident, or house number..."
                   style={{ paddingLeft: "3rem" }}
                   className="h-10 w-full rounded-md border border-border bg-background pl-12 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
                 />
@@ -197,13 +201,18 @@ export default function AdminTanks() {
                   ariaLabel="Filter tanks by status"
                 />
                 <AnimatedFilter
-                  value={blockFilter}
+                  value={addressFilter}
                   onChange={(value) => {
-                    setBlockFilter(value);
+                    setAddressFilter(value);
                     setPage(1);
                   }}
-                  options={[{ value: "all", label: "Block/Lot: All" }, ...blocks.map((block) => ({ value: String(block), label: `Block ${block}` }))]}
-                  ariaLabel="Filter tanks by block"
+                  options={[{ value: "all", label: "House No.: All" }, ...houseNumbers.map((houseNumber) => ({
+                    value: houseNumber,
+                    label: /^(?:blk|block|lot)\b/i.test(houseNumber)
+                      ? houseNumber
+                      : `House No. ${houseNumber}`,
+                  }))]}
+                  ariaLabel="Filter tanks by house number"
                 />
                 <div className="flex items-center gap-1 rounded-md border border-border bg-background p-1" aria-label="Tank view">
                   <button type="button" aria-label="Grid view" aria-pressed={viewMode === "grid"} onClick={() => setViewMode("grid")} className={`flex h-8 w-8 items-center justify-center rounded ${viewMode === "grid" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>
@@ -272,7 +281,7 @@ export default function AdminTanks() {
             <div className="rounded-lg border border-dashed border-border bg-card p-10 text-center">
               <p className="text-sm font-medium">No tanks match these filters</p>
               <p className="mt-1 text-xs text-muted-foreground">{tanks.length === 0 ? "No septic tanks have been registered yet." : "Try another search or reset the selected filters."}</p>
-              <button type="button" onClick={() => { setQuery(""); setStatusFilter("all"); setBlockFilter("all"); setPage(1); }} className="mt-4 rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-muted">
+              <button type="button" onClick={() => { setQuery(""); setStatusFilter("all"); setAddressFilter("all"); setPage(1); }} className="mt-4 rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-muted">
                 Clear filters
               </button>
             </div>
@@ -280,19 +289,19 @@ export default function AdminTanks() {
             <div className="overflow-x-auto rounded-lg border border-border bg-card">
               <table className="w-full min-w-[720px] text-left text-xs">
                 <thead className="border-b border-border text-[10px] uppercase text-muted-foreground">
-                  <tr><th className="px-4 py-3">Tank</th><th>Resident</th><th>Block / Lot</th><th>Fill</th><th>Status</th><th className="text-right">Actions</th></tr>
+                  <tr><th className="px-4 py-3">Tank</th><th>Resident</th><th>Address</th><th>Fill</th><th>Status</th><th className="text-right">Actions</th></tr>
                 </thead>
                 <tbody>
                   {pageItems.map((tank) => (
                     <tr key={tank.id} className="border-b border-border/70 last:border-0 hover:bg-muted/30">
                       <td className="px-4 py-3 font-medium text-primary">{tank.id}</td>
                       <td>{tank.resident}</td>
-                      <td className="text-muted-foreground">Blk {tank.block}, Lot {tank.lot}</td>
+                      <td className="text-muted-foreground">{formatResidentAddress(tank.address) ?? "Address not set"}</td>
                       <td>{tank.level}%</td>
                       <td><span className={`rounded-md px-2 py-1 text-[10px] font-medium ${STATUS_META[tank.status].bg} ${STATUS_META[tank.status].text}`}>{STATUS_META[tank.status].label}</span></td>
                       <td className="px-4 py-3 text-right">
                         <button type="button" onClick={() => setSelectedTank(tank)} className="rounded-md border border-border px-2.5 py-1.5 text-[10px] hover:bg-muted">Details</button>
-                        <button type="button" onClick={() => setDispatchTank({ ...tank, address: `Blk ${tank.block} Lot ${tank.lot}, Broadway`, action: tank.status === "critical" ? "Dispatch" : "Schedule" })} className="ml-2 rounded-md bg-primary px-2.5 py-1.5 text-[10px] text-primary-foreground">{tank.status === "critical" ? "Dispatch" : "Schedule"}</button>
+                        <button type="button" onClick={() => setDispatchTank({ ...tank, action: tank.status === "critical" ? "Dispatch" : "Schedule" })} className="ml-2 rounded-md bg-primary px-2.5 py-1.5 text-[10px] text-primary-foreground">{tank.status === "critical" ? "Dispatch" : "Schedule"}</button>
                       </td>
                     </tr>
                   ))}
@@ -306,7 +315,7 @@ export default function AdminTanks() {
                   key={t.id}
                   tank={t}
                   onView={() => setSelectedTank(t)}
-                  onSchedule={() => setDispatchTank({ ...t, address: `Blk ${t.block} Lot ${t.lot}, Broadway`, action: t.status === "critical" ? "Dispatch" : "Schedule" })}
+                  onSchedule={() => setDispatchTank({ ...t, action: t.status === "critical" ? "Dispatch" : "Schedule" })}
                 />
               ))}
             </div>
@@ -439,8 +448,8 @@ function TankCard({ tank, onView, onSchedule }) {
         <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${meta.bg} ${meta.text}`}>{meta.label}</span>
       </div>
       <div className="mt-2">
-        <p className="text-xs font-medium">
-          Blk {tank.block}, Lot {tank.lot}
+        <p className="break-words text-[10px] font-medium leading-snug">
+          {formatResidentAddress(tank.address) ?? "Address not set"}
         </p>
         <p className="text-[10px] text-muted-foreground">{tank.resident}</p>
       </div>

@@ -14,6 +14,7 @@ import TankPanel from "@/components/TankPanel";
 import DispatchModal from "@/components/DispatchModal";
 import AdminNotificationPopover from "@/components/AdminNotificationPopover";
 import { Skeleton } from "@/components/ui/skeleton";
+import { COMMUNITY_ADDRESS, formatResidentAddress } from "@/lib/addresses";
 import { useAuth } from "../context/AuthContext.jsx";
 import { dispatchAdminDesludging, fetchAdminTanks } from "../api.js";
 
@@ -29,7 +30,7 @@ export default function AdminDashboard({ navigate }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const soon = (name) => window.alert(`${name} will be connected in the next step.`);
   const signOut = async () => {
-    if (await logout()) routerNavigate("/");
+    if (await logout()) routerNavigate("/admin/login");
   };
   const goToTanks = navigate ?? (() => routerNavigate("/admin/tanks"));
   useEffect(() => {
@@ -107,7 +108,7 @@ export default function AdminDashboard({ navigate }) {
               <MapPin className="h-4 w-4 text-primary" />
               <div>
                 <p className="text-[8px] uppercase text-muted-foreground">Location</p>
-                <p className="text-[10px]">Sitio Broadway, Antipolo</p>
+                <p className="text-[10px]">{COMMUNITY_ADDRESS}</p>
               </div>
             </div>
           </section>
@@ -195,7 +196,7 @@ export default function AdminDashboard({ navigate }) {
                         </button>
                       </td>
                       <td>{t.resident}</td>
-                      <td className="text-muted-foreground">{t.address}</td>
+                      <td className="text-muted-foreground">{formatResidentAddress(t.address) ?? "Address not set"}</td>
                       <td>
                         <LevelBar value={t.level} />
                       </td>
@@ -382,7 +383,7 @@ function CriticalAlerts({ data, onView }) {
           >
             <div className="flex-1">
               <b className="text-xs">{a.id}</b>
-              <p className="mt-1 text-[9px] text-muted-foreground">{a.address}</p>
+              <p className="mt-1 text-[9px] text-muted-foreground">{formatResidentAddress(a.address) ?? "Address not set"}</p>
             </div>
             <strong className={`mr-4 text-sm ${a.critical ? "text-danger" : "text-warning"}`}>{a.level}%</strong>
             <button onClick={() => onView(a)} className="rounded-md bg-primary px-3 py-2 text-[10px] text-primary-foreground">

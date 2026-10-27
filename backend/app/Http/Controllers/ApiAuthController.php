@@ -13,6 +13,16 @@ class ApiAuthController extends Controller
 {
     public function login(Request $request): JsonResponse
     {
+        return $this->authenticate($request, 'resident');
+    }
+
+    public function adminLogin(Request $request): JsonResponse
+    {
+        return $this->authenticate($request, 'hoa_admin');
+    }
+
+    private function authenticate(Request $request, string $requiredRole): JsonResponse
+    {
         $credentials = $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
@@ -34,6 +44,14 @@ class ApiAuthController extends Controller
             return response()->json([
                 'message' => $message,
                 'status' => $user->account_status,
+            ], 403);
+        }
+
+        if ($user->role !== $requiredRole) {
+            return response()->json([
+                'message' => $requiredRole === 'hoa_admin'
+                    ? 'This sign-in page is for HOA administrators. Please use the resident sign-in instead.'
+                    : 'This sign-in page is for residents. Please use the HOA administrator sign-in instead.',
             ], 403);
         }
 

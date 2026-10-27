@@ -32,6 +32,53 @@ class ApiAuthenticationTest extends TestCase
         $this->assertNotEmpty($response->json('token'));
     }
 
+    public function test_approved_hoa_admin_can_log_in_through_the_admin_api(): void
+    {
+        $admin = User::factory()->create([
+            'role' => 'hoa_admin',
+            'account_status' => 'approved',
+        ]);
+
+        $this->postJson('/api/admin/login', [
+            'email' => $admin->email,
+            'password' => 'password',
+        ])->assertOk()
+            ->assertJsonPath('user.role', 'hoa_admin')
+            ->assertJsonStructure(['token', 'user']);
+    }
+
+    public function test_resident_cannot_log_in_through_the_admin_api(): void
+    {
+        $resident = User::factory()->create([
+            'role' => 'resident',
+            'account_status' => 'approved',
+        ]);
+
+        $this->postJson('/api/admin/login', [
+            'email' => $resident->email,
+            'password' => 'password',
+        ])->assertForbidden()
+            ->assertJsonPath('message', 'This sign-in page is for HOA administrators. Please use the resident sign-in instead.');
+
+        $this->assertNull($resident->fresh()->api_token_hash);
+    }
+
+    public function test_hoa_admin_must_use_the_admin_login_endpoint(): void
+    {
+        $admin = User::factory()->create([
+            'role' => 'hoa_admin',
+            'account_status' => 'approved',
+        ]);
+
+        $this->postJson('/api/login', [
+            'email' => $admin->email,
+            'password' => 'password',
+        ])->assertForbidden()
+            ->assertJsonPath('message', 'This sign-in page is for residents. Please use the HOA administrator sign-in instead.');
+
+        $this->assertNull($admin->fresh()->api_token_hash);
+    }
+
     public function test_demo_account_flag_is_returned_during_login(): void
     {
         $user = User::factory()->create([

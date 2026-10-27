@@ -3,7 +3,7 @@
  *
  * Hardware:
  * - ESP32
- * - JSN-SR04T ultrasonic sensor
+ * - JSN-SR04T/HC-SR04 ultrasonic sensor
  * - 128x64 SH1106 I2C OLED
  *
  * Device:
@@ -15,7 +15,7 @@
  * - Public, unencrypted broker is for demo use only.
  *
  * IMPORTANT:
- * - Use a voltage divider from JSN-SR04T ECHO to ESP32 GPIO35.
+ * - Use a voltage divider from JSN-SR04T/HC-SR04 ECHO to ESP32 GPIO35.
  * - Do not connect a possible 5V ECHO signal directly to the ESP32.
  */
 
@@ -25,6 +25,7 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
+#include "secrets.h"
 #include <ctype.h>
 #include <math.h>
 #include <stdlib.h>
@@ -33,9 +34,6 @@
 // --------------------------------------------------
 // Wi-Fi configuration
 // --------------------------------------------------
-
-const char* WIFI_SSID = "Redmi Turbo 3";
-const char* WIFI_PASSWORD = "supanigga";
 
 // --------------------------------------------------
 // MQTT configuration
@@ -54,7 +52,7 @@ const char* FIRMWARE_VERSION = "1.0.0";
 
 // Updated from the retained MQTT config after the resident pairs the device.
 float tankHeightCm = 400.0;
-const bool SIMULATION_MODE = true;
+const bool SIMULATION_MODE = false;
 
 // Change this number to simulate a different tank level.
 float SIMULATED_DISTANCE_CM = 100.0;
@@ -71,11 +69,11 @@ const unsigned long PUBLISH_INTERVAL_MS = 5000;
 // JSN-SR04T pins
 // --------------------------------------------------
 
-const int TRIG_PIN = 32;
-const int ECHO_PIN = 35;
+const int TRIG_PIN = 27;
+const int ECHO_PIN = 26;
 
-// JSN-SR04T usually has a larger blind zone than HC-SR04.
-const float MIN_VALID_DISTANCE_CM = 25.0;
+// Accept close readings for testing; the sensor's physical blind zone still applies.
+const float MIN_VALID_DISTANCE_CM = 0.0;
 const float MAX_VALID_DISTANCE_CM = 600.0;
 
 // --------------------------------------------------
@@ -526,7 +524,11 @@ void setup() {
   initializeDeviceId();
   Serial.begin(115200);
   delay(1000);
-  Serial.println("Simulation control: enter D=<distance_cm>, for example D=120.");
+  if (SIMULATION_MODE) {
+    Serial.println("Simulation control: enter D=<distance_cm>, for example D=120.");
+  } else {
+    Serial.println("Live sensor mode enabled.");
+  }
 
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
@@ -612,6 +614,15 @@ void loop() {
     distanceCM = SIMULATED_DISTANCE_CM;
   } else {
     distanceCM = readFilteredDistanceCM();
+    if (
+      distanceCM < MIN_VALID_DISTANCE_CM ||
+      distanceCM > MAX_VALID_DISTANCE_CM
+    ) {
+      Serial.println("No valid sensor echo. Reading not published.");
+      showDisplay("Sensor unavailable", "Check target/wiring");
+      delay(10);
+      return;
+    }
   }
 
   float fillPercentage =

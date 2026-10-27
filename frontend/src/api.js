@@ -9,8 +9,12 @@
 export const API_BASE_URL =
   import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000";
 
-const TOKEN_STORAGE_KEY = "septiguard_token";
-const USER_STORAGE_KEY = "septiguard_user";
+const LEGACY_TOKEN_STORAGE_KEY = "septiguard_token";
+const LEGACY_USER_STORAGE_KEY = "septiguard_user";
+const SESSION_STORAGE_KEYS = {
+  admin: { token: "septiguard_admin_token", user: "septiguard_admin_user" },
+  resident: { token: "septiguard_resident_token", user: "septiguard_resident_user" },
+};
 
 export async function fetchComplaintPhoto(token, photoUrl) {
   const photoPath = new URL(photoUrl, API_BASE_URL);
@@ -56,10 +60,10 @@ function normaliseLoginResponse(data) {
   };
 }
 
-export async function loginRequest(email, password) {
+async function submitLogin(email, password, endpoint) {
   let res;
   try {
-    res = await fetch(`${API_BASE_URL}/api/login`, {
+    res = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -92,6 +96,14 @@ export async function loginRequest(email, password) {
   }
 
   return normaliseLoginResponse(data);
+}
+
+export function loginRequest(email, password) {
+  return submitLogin(email, password, "/api/login");
+}
+
+export function adminLoginRequest(email, password) {
+  return submitLogin(email, password, "/api/admin/login");
 }
 
 export async function requestPasswordReset(email) {
@@ -533,25 +545,54 @@ export async function logoutRequest(token) {
 
 export function persistSession(token, user) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
-  window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+  const role = normaliseUser(user).role;
+  const keys = SESSION_STORAGE_KEYS[role];
+  window.localStorage.setItem(keys.token, token);
+  window.localStorage.setItem(keys.user, JSON.stringify(user));
 }
 
-export function clearSession() {
+export function clearSession(role) {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(TOKEN_STORAGE_KEY);
-  window.localStorage.removeItem(USER_STORAGE_KEY);
+  const keys = SESSION_STORAGE_KEYS[role];
+  if (!keys) return;
+  window.localStorage.removeItem(keys.token);
+  window.localStorage.removeItem(keys.user);
 }
 
-export function readStoredSession() {
+export function readStoredSession(role) {
   if (typeof window === "undefined") return null;
-  const token = window.localStorage.getItem(TOKEN_STORAGE_KEY);
-  const userRaw = window.localStorage.getItem(USER_STORAGE_KEY);
+  const legacyToken = window.localStorage.getItem(LEGACY_TOKEN_STORAGE_KEY);
+  const legacyUserRaw = window.localStorage.getItem(LEGACY_USER_STORAGE_KEY);
+  if (legacyToken && legacyUserRaw) {
+    try {
+      const legacyUser = normaliseUser(JSON.parse(legacyUserRaw));
+      const legacyKeys = SESSION_STORAGE_KEYS[legacyUser.role];
+      window.localStorage.setItem(legacyKeys.token, legacyToken);
+      window.localStorage.setItem(legacyKeys.user, JSON.stringify(legacyUser));
+      window.localStorage.removeItem(LEGACY_TOKEN_STORAGE_KEY);
+      window.localStorage.removeItem(LEGACY_USER_STORAGE_KEY);
+    } catch (error) {
+      console.error("Could not migrate the saved SeptiGuard session.", error);
+      return null;
+    }
+  }
+
+  const keys = SESSION_STORAGE_KEYS[role];
+  if (!keys) return null;
+  const token = window.localStorage.getItem(keys.token);
+  const userRaw = window.localStorage.getItem(keys.user);
   if (!token || !userRaw) return null;
   try {
     const parsedUser = JSON.parse(userRaw);
-    return { token, user: normaliseUser(parsedUser) };
-  } catch {
+    const user = normaliseUser(parsedUser);
+    if (user.role !== role) {
+      window.localStorage.removeItem(keys.token);
+      window.localStorage.removeItem(keys.user);
+      return null;
+    }
+    return { token, user };
+  } catch (error) {
+    console.error("Could not read the saved SeptiGuard session.", error);
     return null;
   }
 }

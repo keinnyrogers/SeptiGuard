@@ -171,6 +171,9 @@ export default function Alerts() {
   );
   const [tab, setTab] = useState("all");
   const [query, setQuery] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [readFilter, setReadFilter] = useState("all");
+  const [timeFilter, setTimeFilter] = useState("any");
 
   const soon = (name) => window.alert(`${name} will be connected in the next step.`);
   const signOut = async () => { if (await logout()) navigate("/"); };
@@ -255,8 +258,19 @@ export default function Alerts() {
         query.trim() === "" ||
         n.title.toLowerCase().includes(query.toLowerCase()) ||
         n.message.toLowerCase().includes(query.toLowerCase())
-      );
-  }, [visibleNotifications, tab, query]);
+      )
+      .filter((n) => {
+        if (readFilter === "unread" && n.is_read) return false;
+        if (readFilter === "read" && !n.is_read) return false;
+        if (timeFilter === "week") {
+          const createdAt = new Date(n.created_at).getTime();
+          return Number.isFinite(createdAt) && createdAt >= now - 7 * 24 * 60 * 60 * 1000 && createdAt <= now;
+        }
+        return true;
+      });
+  }, [visibleNotifications, tab, query, readFilter, timeFilter, now]);
+
+  const activeFilterCount = Number(readFilter !== "all") + Number(timeFilter !== "any");
 
   const grouped = useMemo(() => {
     const groups = {};
@@ -420,13 +434,63 @@ export default function Alerts() {
                   />
                 </div>
                 <button
-                  onClick={() => soon("Filter")}
-                  className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground"
+                  type="button"
+                  aria-expanded={filtersOpen}
+                  aria-controls="notification-filters"
+                  onClick={() => setFiltersOpen((open) => !open)}
+                  className={`flex items-center gap-2 rounded-md border px-3 py-2 text-xs ${
+                    filtersOpen || activeFilterCount > 0
+                      ? "border-primary/40 bg-primary/10 text-primary"
+                      : "border-border bg-muted/40 text-muted-foreground"
+                  }`}
                 >
                   <SlidersHorizontal className="h-3.5 w-3.5" />
+                  <span className="sr-only">Filters</span>
+                  {activeFilterCount > 0 && (
+                    <span aria-label={`${activeFilterCount} active filters`}>{activeFilterCount}</span>
+                  )}
                 </button>
               </div>
             </div>
+            {filtersOpen && (
+              <div id="notification-filters" className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                <label className="space-y-1.5 text-xs text-muted-foreground">
+                  <span>Read status</span>
+                  <select
+                    value={readFilter}
+                    onChange={(event) => setReadFilter(event.target.value)}
+                    className="h-9 w-full rounded-md border border-border bg-background px-3 text-foreground"
+                  >
+                    <option value="all">All notifications</option>
+                    <option value="unread">Unread only</option>
+                    <option value="read">Read only</option>
+                  </select>
+                </label>
+                <label className="space-y-1.5 text-xs text-muted-foreground">
+                  <span>Date</span>
+                  <select
+                    value={timeFilter}
+                    onChange={(event) => setTimeFilter(event.target.value)}
+                    className="h-9 w-full rounded-md border border-border bg-background px-3 text-foreground"
+                  >
+                    <option value="any">Any time</option>
+                    <option value="week">Past 7 days</option>
+                  </select>
+                </label>
+                {activeFilterCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReadFilter("all");
+                      setTimeFilter("any");
+                    }}
+                    className="h-9 rounded-md border border-border px-3 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                  >
+                    Clear filters
+                  </button>
+                )}
+              </div>
+            )}
           </section>
 
           {/* ---------------- NOTIFICATION LIST ---------------- */}

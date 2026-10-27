@@ -24,6 +24,7 @@ Route::post('/sensor/readings', [SensorReadingController::class, 'store'])
     ->name('api.sensor-readings.store');
 
 Route::post('/login', [ApiAuthController::class, 'login'])->name('api.login');
+Route::post('/admin/login', [ApiAuthController::class, 'adminLogin'])->name('api.admin.login');
 Route::post('/register', [ApiAuthController::class, 'register'])->name('api.register');
 Route::post('/logout', [ApiAuthController::class, 'logout'])->name('api.logout');
 Route::post('/forgot-password', [PasswordResetController::class, 'sendResetLink'])

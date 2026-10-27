@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useLocation } from "react-router-dom";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -20,6 +21,7 @@ import { Button } from "../components/ui/button";
 import {
   clearSession,
   loginRequest,
+  adminLoginRequest,
   logoutRequest,
   persistSession,
   readStoredSession,
@@ -29,9 +31,12 @@ import {
 const AuthContext = createContext(undefined);
 
 export function AuthProvider({ children }) {
+  const { pathname } = useLocation();
+  const portalRole = pathname.startsWith("/admin") ? "admin" : "resident";
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
-  const [isReady, setIsReady] = useState(false);
+  const [readyRole, setReadyRole] = useState(null);
+  const isReady = readyRole === portalRole;
   const [profilePhoto, setProfilePhoto] = useState(null);
   const [logoutPromptOpen, setLogoutPromptOpen] = useState(false);
   const [logoutPending, setLogoutPending] = useState(false);
@@ -43,15 +48,18 @@ export function AuthProvider({ children }) {
     ? profilePhoto.url
     : null;
 
-  // Hydrate session from localStorage on mount.
+  // Keep resident and admin sessions separate even when both portals share an origin.
   useEffect(() => {
-    const session = readStoredSession();
+    const session = readStoredSession(portalRole);
     if (session) {
       setUser(session.user);
       setToken(session.token);
+    } else {
+      setUser(null);
+      setToken(null);
     }
-    setIsReady(true);
-  }, []);
+    setReadyRole(portalRole);
+  }, [portalRole]);
 
   useEffect(() => {
     if (user?.demo_mode || !token || !profilePhotoPath) return undefined;
@@ -109,6 +117,14 @@ export function AuthProvider({ children }) {
     return newUser;
   }, []);
 
+  const loginAdmin = useCallback(async (email, password) => {
+    const { token: newToken, user: newUser } = await adminLoginRequest(email, password);
+    persistSession(newToken, newUser);
+    setUser(newUser);
+    setToken(newToken);
+    return newUser;
+  }, []);
+
   const logout = useCallback(() => new Promise((resolve) => {
     logoutResolver.current?.(false);
     logoutResolver.current = resolve;
@@ -131,7 +147,7 @@ export function AuthProvider({ children }) {
       if (token) {
         await logoutRequest(token);
       }
-      clearSession();
+      clearSession(user?.role);
       setUser(null);
       setToken(null);
       setLogoutPromptOpen(false);
@@ -142,7 +158,7 @@ export function AuthProvider({ children }) {
     } finally {
       setLogoutPending(false);
     }
-  }, [token]);
+  }, [token, user]);
 
   const updateUser = useCallback((updates) => {
     setUser((currentUser) => {
@@ -155,16 +171,17 @@ export function AuthProvider({ children }) {
 
   const value = useMemo(
     () => ({
-      user,
-      token,
+      user: isReady ? user : null,
+      token: isReady ? token : null,
       profilePhotoUrl,
-      isAuthenticated: !!token && !!user,
+      isAuthenticated: isReady && !!token && !!user,
       isReady,
       login,
+      loginAdmin,
       logout,
       updateUser,
     }),
-    [user, token, profilePhotoUrl, isReady, login, logout, updateUser],
+    [user, token, profilePhotoUrl, isReady, login, loginAdmin, logout, updateUser],
   );
 
   return (

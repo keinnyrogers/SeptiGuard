@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, Clock, Droplets, MapPin, User, X } from "lucide-react";
 import DatePicker from "@/components/DatePicker";
+import { formatResidentAddress } from "@/lib/addresses";
 
 // Shared status thresholds: >=80 critical, >=70 warning, else normal.
 function statusOf(level) {
@@ -67,7 +68,7 @@ export default function TankPanel({ tank, onClose, onAction = () => {}, onRecord
 
   const status = tank.status ?? statusOf(tank.level);
   const meta = STATUS_META[status] ?? STATUS_META.normal;
-  const address = tank.address ?? (tank.block != null && tank.lot != null ? `Blk ${tank.block} Lot ${tank.lot}` : "—");
+  const address = formatResidentAddress(tank.address) ?? "Address not set";
   const forecastText = tank.forecast_status === "threshold_reached"
     ? "At/above 80%"
     : tank.forecast_status === "ready" && Number.isInteger(tank.days_to_critical)

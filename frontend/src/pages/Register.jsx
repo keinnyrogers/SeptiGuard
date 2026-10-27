@@ -14,6 +14,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
+import { COMMUNITY_ADDRESS } from "@/lib/addresses";
 import { registerRequest } from "../api.js";
 
 export default function Register() {
@@ -40,7 +41,7 @@ export default function Register() {
     if (!email.trim()) return setError("Please enter your email address.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
       return setError("Please enter a valid email address.");
-    if (!blockLot.trim()) return setError("Please enter your block and lot.");
+    if (!blockLot.trim()) return setError("Please enter your house number.");
     if (!phone.trim()) return setError("Please enter your contact number.");
     if (password.length < 8)
       return setError("Password must be at least 8 characters.");
@@ -105,10 +106,10 @@ export default function Register() {
         <div className="relative z-10 flex items-center justify-between text-xs text-muted-foreground">
           <span>© 2026 Broadway Hagdan Loob HOA</span>
           <div className="flex gap-4">
-            <Link to="/privacy" className="transition-colors hover:text-foreground">
+            <Link to="/privacy" state={{ from: "/register" }} className="transition-colors hover:text-foreground">
               Privacy
             </Link>
-            <Link to="/terms" className="transition-colors hover:text-foreground">
+            <Link to="/terms" state={{ from: "/register" }} className="transition-colors hover:text-foreground">
               Terms
             </Link>
           </div>
@@ -219,19 +220,20 @@ export default function Register() {
               <div className="grid gap-5 sm:grid-cols-2">
                 <div className="space-y-2">
                   <label htmlFor="blockLot" className="block text-sm font-medium text-muted-foreground">
-                    Block & Lot
+                    House Number
                   </label>
                   <div className="relative">
                     <Home className="pointer-events-none absolute left-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-muted-foreground" />
                     <input
                       id="blockLot"
                       maxLength={60}
-                      placeholder="Block 3 Lot 12"
+                      placeholder="e.g. 12"
                       value={blockLot}
                       onChange={(e) => setBlockLot(e.target.value)}
                       className={fieldClass}
                     />
                   </div>
+                  <p className="text-xs leading-relaxed text-muted-foreground">Your full address will include {COMMUNITY_ADDRESS}.</p>
                 </div>
                 <div className="space-y-2">
                   <label htmlFor="phone" className="block text-sm font-medium text-muted-foreground">
@@ -322,11 +324,11 @@ export default function Register() {
                 </button>
                 <span>
                   I agree to the{" "}
-                  <Link to="/terms" className="font-medium text-primary hover:underline">
+                  <Link to="/terms" state={{ from: "/register" }} className="font-medium text-primary hover:underline">
                     Terms and Conditions
                   </Link>{" "}
                   and acknowledge the{" "}
-                  <Link to="/privacy" className="font-medium text-primary hover:underline">
+                  <Link to="/privacy" state={{ from: "/register" }} className="font-medium text-primary hover:underline">
                     Privacy Policy
                   </Link>
                 </span>

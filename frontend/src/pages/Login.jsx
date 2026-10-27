@@ -34,9 +34,9 @@ const FEATURES = [
   },
 ];
 
-export default function Login() {
+export default function Login({ adminOnly = false }) {
   const navigate = useNavigate();
-  const { login, isAuthenticated, isReady } = useAuth();
+  const { login, loginAdmin, isAuthenticated, isReady, user: currentUser } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -51,11 +51,9 @@ export default function Login() {
   // If already authenticated, bounce to the right dashboard.
   useEffect(() => {
     if (isReady && isAuthenticated) {
-      const stored = window.localStorage.getItem("septiguard_user");
-      const role = stored ? JSON.parse(stored).role : "resident";
-      navigate(role === "admin" ? "/admin/dashboard" : "/dashboard");
+      navigate(currentUser?.role === "admin" ? "/admin/dashboard" : "/dashboard");
     }
-  }, [isReady, isAuthenticated, navigate]);
+  }, [currentUser?.role, isReady, isAuthenticated, navigate]);
 
   async function handleSubmit(e) {
     if (forgotPassword) {
@@ -98,7 +96,9 @@ export default function Login() {
 
     setSubmitting(true);
     try {
-      const user = await login(email.trim(), password);
+      const user = adminOnly
+        ? await loginAdmin(email.trim(), password)
+        : await login(email.trim(), password);
       // Keep-me-signed-in: if false, clear session on tab close only — we keep
       // token in localStorage either way; a future hardening pass can use
       // sessionStorage when unchecked. For now we respect the toggle visually.
@@ -136,13 +136,14 @@ export default function Login() {
           </span>
 
           <h1 className="mt-6 font-display text-4xl font-bold leading-[1.1] tracking-tight xl:text-5xl">
-            Welcome back to your{" "}
-            <span className="text-primary">smart septic network.</span>
+            {adminOnly ? "HOA operations, " : "Welcome back to your "}
+            <span className="text-primary">{adminOnly ? "all in one place." : "smart septic network."}</span>
           </h1>
 
           <p className="mt-4 max-w-md text-sm leading-relaxed text-muted-foreground xl:text-base">
-            Sign in to monitor your tank, review maintenance alerts, and stay
-            connected with your HOA administrators.
+            {adminOnly
+              ? "Sign in with your HOA administrator account to manage residents, tanks, and service requests."
+              : "Sign in to monitor your tank, review maintenance alerts, and stay connected with your HOA administrators."}
           </p>
 
           <ul className="mt-10 space-y-5">
@@ -181,14 +182,18 @@ export default function Login() {
         {/* mobile glow */}
         <div className="pointer-events-none absolute right-0 top-0 h-64 w-64 rounded-full bg-primary/10 blur-[90px] lg:hidden" />
 
-        {/* Top-right sign-up link */}
+        {/* Top-right account link */}
         <div className="relative z-10 hidden justify-end lg:flex">
-          <p className="text-sm text-muted-foreground">
-            New resident?{" "}
-            <Link to="/register" className="font-medium text-primary hover:underline">
-              Sign up
-            </Link>
-          </p>
+          {!adminOnly && (
+            <p className="text-sm text-muted-foreground">
+              <>
+                New resident?{" "}
+                <Link to="/register" className="font-medium text-primary hover:underline">
+                  Sign up
+                </Link>
+              </>
+            </p>
+          )}
         </div>
 
         {/* Form */}
@@ -202,12 +207,14 @@ export default function Login() {
           </div>
 
           <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
-            {forgotPassword ? "Reset your password" : "Sign in"}
+            {forgotPassword ? "Reset your password" : adminOnly ? "Admin sign in" : "Sign in"}
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
             {forgotPassword
               ? "Enter your registered email and we’ll send a password reset link if an account exists."
-              : "Enter your credentials to access your SeptiGuard dashboard."}
+              : adminOnly
+                ? "Use your approved HOA administrator account to continue."
+                : "Enter your credentials to access your SeptiGuard dashboard."}
           </p>
 
           {resetRequestSent && (
@@ -226,7 +233,7 @@ export default function Login() {
             <form onSubmit={handleSubmit} className="mt-6 space-y-5" noValidate>
               <div className="space-y-2">
                 <label htmlFor="email" className="block text-sm font-medium text-muted-foreground">
-                  Email Address (Registered in HOA)
+                  {adminOnly ? "Administrator email" : "Email Address (Registered in HOA)"}
                 </label>
                 <div className="relative">
                   <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-muted-foreground" />
@@ -263,7 +270,7 @@ export default function Login() {
                 htmlFor="email"
                 className="block text-sm font-medium text-muted-foreground"
               >
-                Email Address (Registered in HOA)
+                {adminOnly ? "Administrator email" : "Email Address (Registered in HOA)"}
               </label>
               <div className="relative">
                 <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-muted-foreground" />
@@ -365,26 +372,20 @@ export default function Login() {
             </button>
           </form>}
 
-          {/* Register prompt */}
-          <div className="mt-6 flex items-center gap-3 rounded-lg border border-border bg-card/60 px-4 py-3.5 lg:flex">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card">
-              <UserPlus className="h-4.5 w-4.5 text-muted-foreground" />
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Don't have an account?{" "}
-              <Link to="/register" className="font-medium text-primary hover:underline">
-                Register
-              </Link>{" "}
-              and wait for admin approval.
-            </p>
-          </div>
-
-          <div className="mt-4 flex justify-center text-sm text-muted-foreground lg:hidden">
-            New resident?{" "}
-            <Link to="/register" className="ml-1 font-medium text-primary hover:underline">
-              Sign up
-            </Link>
-          </div>
+          {!adminOnly && (
+              <div className="mt-6 flex items-center gap-3 rounded-lg border border-border bg-card/60 px-4 py-3.5 lg:flex">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card">
+                  <UserPlus className="h-4.5 w-4.5 text-muted-foreground" />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Don't have an account?{" "}
+                  <Link to="/register" className="font-medium text-primary hover:underline">
+                    Register
+                  </Link>{" "}
+                  and wait for admin approval.
+                </p>
+              </div>
+          )}
         </div>
 
         {/* Right footer */}

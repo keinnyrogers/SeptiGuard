@@ -27,6 +27,7 @@ export default function App() {
     <div key={location.pathname} className="route-transition">
     <Routes location={location}>
       <Route path="/" element={<Login />} />
+      <Route path="/admin/login" element={<Login adminOnly />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/register" element={<Register />} />
       <Route path="/terms" element={<Terms />} />
