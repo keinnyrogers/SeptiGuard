@@ -53,6 +53,8 @@ return [
     'mqtt' => [
         'host' => env('MQTT_HOST', 'broker.hivemq.com'),
         'port' => (int) env('MQTT_PORT', 1883),
+        'username' => env('MQTT_USERNAME'),
+        'password' => env('MQTT_PASSWORD'),
         'topic_prefix' => env('MQTT_TOPIC_PREFIX', 'septiguard-test-aggin'),
         'topic' => env('MQTT_TOPIC', 'septiguard-test-aggin/tanks/+/readings'),
         'tls' => filter_var(env('MQTT_TLS', false), FILTER_VALIDATE_BOOLEAN),

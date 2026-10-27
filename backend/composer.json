@@ -7,7 +7,7 @@
     "license": "MIT",
     "require": {
         "ext-sodium": "*",
-        "php": "^8.3",
+        "php": "^8.4.1",
         "laravel/framework": "^13.17",
         "laravel/reverb": "^1.12",
         "laravel/tinker": "^3.0",

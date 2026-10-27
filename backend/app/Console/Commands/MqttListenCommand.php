@@ -28,6 +28,8 @@ class MqttListenCommand extends Command
         $settings = (new ConnectionSettings)
             ->setKeepAliveInterval(60)
             ->setUseTls((bool) config('services.mqtt.tls'))
+            ->setUsername(config('services.mqtt.username') ?: null)
+            ->setPassword(config('services.mqtt.password') ?: null)
             ->setReconnectAutomatically(true)
             ->setMaxReconnectAttempts(3)
             ->setDelayBetweenReconnectAttempts(2000);

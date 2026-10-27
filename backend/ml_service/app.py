@@ -16,6 +16,11 @@ MAX_FORECAST_DAYS = 365
 app = FastAPI(title="SeptiGuard Prediction Service", version="1.0.0")
 
 
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 class ReadingPoint(BaseModel):
     reading_date: date | None = None
     measured_at: datetime
