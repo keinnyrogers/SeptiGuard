@@ -2,13 +2,17 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\SendResidentRegistrationStatusEmail;
 use App\Models\Complaint;
 use App\Models\ResidentProfile;
 use App\Models\SepticSystem;
 use App\Models\TankReading;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class AdminResidentApiTest extends TestCase
@@ -296,6 +300,14 @@ class AdminResidentApiTest extends TestCase
 
     public function test_admin_can_approve_or_reject_pending_residents(): void
     {
+        Queue::fake();
+        config([
+            'mail.default' => 'smtp',
+            'mail.mailers.smtp.host' => 'smtp.gmail.com',
+            'mail.mailers.smtp.username' => 'hoa@example.com',
+            'mail.mailers.smtp.password' => 'app-password',
+            'mail.from.address' => 'hoa@example.com',
+        ]);
         $admin = $this->createApiUser('hoa_admin');
         $resident = User::factory()->create(['role' => 'resident', 'account_status' => 'pending']);
         $headers = ['Authorization' => 'Bearer '.$this->tokenFor($admin)];
@@ -303,17 +315,221 @@ class AdminResidentApiTest extends TestCase
         $this->withHeaders($headers)
             ->patchJson("/api/admin/residents/{$resident->id}/approval", ['status' => 'approved'])
             ->assertOk()
-            ->assertJsonPath('data.status', 'approved');
+            ->assertJsonPath('data.status', 'approved')
+            ->assertJsonPath('message', 'Resident account approved. Status email queued.');
 
         $this->assertDatabaseHas('users', ['id' => $resident->id, 'account_status' => 'approved']);
 
         $secondResident = User::factory()->create(['role' => 'resident', 'account_status' => 'pending']);
         $this->withHeaders($headers)
-            ->patchJson("/api/admin/residents/{$secondResident->id}/approval", ['status' => 'rejected'])
+            ->patchJson("/api/admin/residents/{$secondResident->id}/approval", [
+                'status' => 'rejected',
+                'rejection_reason' => 'Please provide proof of residence.',
+            ])
             ->assertOk()
-            ->assertJsonPath('data.status', 'rejected');
+            ->assertJsonPath('data.status', 'deleted')
+            ->assertJsonPath('data.rejection_reason', 'Please provide proof of residence.')
+            ->assertJsonPath('message', 'Resident registration declined and email released. Status email queued.');
 
-        $this->assertDatabaseHas('users', ['id' => $secondResident->id, 'account_status' => 'rejected']);
+        $this->assertDatabaseHas('users', [
+            'id' => $secondResident->id,
+            'account_status' => 'deleted',
+            'rejection_reason' => 'Please provide proof of residence.',
+            'name' => $secondResident->name,
+        ]);
+        $this->assertNotSame($secondResident->email, $secondResident->fresh()->email);
+        $this->postJson('/api/register', [
+            'name' => 'Re-registering Resident',
+            'email' => $secondResident->email,
+            'address' => 'Blk 3 Lot 12',
+            'contact_number' => '09123456789',
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
+        ])->assertCreated();
+        Queue::assertPushed(SendResidentRegistrationStatusEmail::class, 2);
+        Queue::assertPushed(
+            SendResidentRegistrationStatusEmail::class,
+            fn (SendResidentRegistrationStatusEmail $job): bool => $job->residentEmail === $secondResident->email
+                && $job->status === 'rejected'
+                && $job->rejectionReason === 'Please provide proof of residence.',
+        );
+    }
+
+    public function test_admin_cannot_reject_a_resident_without_a_reason(): void
+    {
+        $admin = $this->createApiUser('hoa_admin');
+        $resident = User::factory()->create(['role' => 'resident', 'account_status' => 'pending']);
+
+        $this->withToken($this->tokenFor($admin))
+            ->patchJson("/api/admin/residents/{$resident->id}/approval", ['status' => 'rejected'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('rejection_reason');
+
+        $this->assertDatabaseHas('users', [
+            'id' => $resident->id,
+            'account_status' => 'pending',
+            'rejection_reason' => null,
+        ]);
+    }
+
+    public function test_admin_is_told_when_status_email_cannot_be_queued(): void
+    {
+        config([
+            'mail.default' => 'log',
+            'mail.from.address' => 'hello@example.com',
+        ]);
+        $admin = $this->createApiUser('hoa_admin');
+        $resident = User::factory()->create(['role' => 'resident', 'account_status' => 'pending']);
+
+        $this->withToken($this->tokenFor($admin))
+            ->patchJson("/api/admin/residents/{$resident->id}/approval", [
+                'status' => 'rejected',
+                'rejection_reason' => 'Please provide proof of residence.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'deleted')
+            ->assertJsonPath('message', 'Resident registration declined and email released, but no email was queued because SMTP is not configured.');
+
+        $this->assertDatabaseHas('users', [
+            'id' => $resident->id,
+            'account_status' => 'deleted',
+        ]);
+        $this->postJson('/api/register', [
+            'name' => 'Re-registering Resident',
+            'email' => $resident->email,
+            'address' => 'Blk 3 Lot 12',
+            'contact_number' => '09123456789',
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
+        ])->assertCreated();
+    }
+
+    public function test_admin_can_anonymize_a_deactivated_resident_and_release_email_while_preserving_history(): void
+    {
+        Storage::fake('local');
+        $admin = $this->createApiUser('hoa_admin');
+        $resident = User::factory()->create([
+            'role' => 'resident',
+            'account_status' => 'approved',
+            'name' => 'Jordan Resident',
+            'email' => 'resident@example.com',
+        ]);
+        $profilePhoto = 'resident-profile-photos/'.$resident->id.'/profile.png';
+        Storage::disk('local')->put($profilePhoto, 'profile image');
+        ResidentProfile::query()->create([
+            'user_id' => $resident->id,
+            'address' => 'Blk 3 Lot 12',
+            'contact_number' => '09123456789',
+            'profile_photo_path' => $profilePhoto,
+            'household_members' => 4,
+            'notes' => 'Private resident note',
+        ]);
+        $tank = SepticSystem::factory()->create([
+            'user_id' => $resident->id,
+            'device_id' => 'TNK-DELETE-001',
+        ]);
+        $resident->septiNotifications()->create([
+            'title' => 'Private notification',
+            'message' => 'Resident-specific notification content.',
+            'type' => 'ticket_update',
+            'channel' => 'in_app',
+            'is_read' => false,
+            'is_sent' => true,
+        ]);
+        DB::table('resident_push_tokens')->insert([
+            'user_id' => $resident->id,
+            'token' => 'private-push-token',
+            'token_hash' => hash('sha256', 'private-push-token'),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('resident_information_change_requests')->insert([
+            'user_id' => $resident->id,
+            'field' => 'address',
+            'current_value' => 'Blk 3 Lot 12',
+            'requested_value' => 'Blk 5 Lot 2',
+            'reason' => 'Moved home.',
+            'status' => 'pending',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $complaint = Complaint::query()->create([
+            'user_id' => $resident->id,
+            'ticket_code' => 'CMP-DELETE-001',
+            'title' => 'Historical complaint',
+            'category' => 'other',
+            'description' => 'Retained service history.',
+            'status' => 'resolved',
+        ]);
+        $headers = ['Authorization' => 'Bearer '.$this->tokenFor($admin)];
+
+        $this->withHeaders($headers)
+            ->patchJson("/api/admin/residents/{$resident->id}/deactivate")
+            ->assertOk();
+
+        $this->withHeaders($headers)
+            ->deleteJson("/api/admin/residents/{$resident->id}/account")
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Jordan Resident')
+            ->assertJsonPath('data.status', 'deleted')
+            ->assertJsonPath('data.block_lot', 'Removed')
+            ->assertJsonPath('message', 'Resident account removed. The resident name and complaint/service history were retained, and the original email can be used to register again.');
+
+        $resident->refresh();
+        $this->assertSame('deleted', $resident->account_status);
+        $this->assertSame('Jordan Resident', $resident->name);
+        $this->assertNotSame('resident@example.com', $resident->email);
+        $this->assertNotNull($resident->anonymized_at);
+        $this->assertNull($resident->api_token_hash);
+        $this->assertDatabaseHas('resident_profiles', [
+            'user_id' => $resident->id,
+            'address' => 'Removed',
+            'contact_number' => 'Removed',
+            'household_members' => 0,
+            'notes' => null,
+            'profile_photo_path' => null,
+        ]);
+        $this->assertDatabaseHas('septic_systems', [
+            'id' => $tank->id,
+            'user_id' => null,
+        ]);
+        $this->assertDatabaseHas('complaints', [
+            'id' => $complaint->id,
+            'user_id' => $resident->id,
+            'ticket_code' => 'CMP-DELETE-001',
+        ]);
+        $this->assertDatabaseMissing('septi_notifications', ['user_id' => $resident->id]);
+        $this->assertDatabaseMissing('resident_push_tokens', ['user_id' => $resident->id]);
+        $this->assertDatabaseMissing('resident_information_change_requests', ['user_id' => $resident->id]);
+        Storage::disk('local')->assertMissing($profilePhoto);
+
+        $this->postJson('/api/register', [
+            'name' => 'New Resident',
+            'email' => 'resident@example.com',
+            'address' => 'Blk 3 Lot 12',
+            'contact_number' => '09123456789',
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
+        ])->assertCreated();
+    }
+
+    public function test_admin_cannot_anonymize_a_resident_that_has_not_been_deactivated(): void
+    {
+        $admin = $this->createApiUser('hoa_admin');
+        $resident = User::factory()->create([
+            'role' => 'resident',
+            'account_status' => 'approved',
+        ]);
+
+        $this->withToken($this->tokenFor($admin))
+            ->deleteJson("/api/admin/residents/{$resident->id}/account")
+            ->assertNotFound();
+
+        $this->assertDatabaseHas('users', [
+            'id' => $resident->id,
+            'account_status' => 'approved',
+            'email' => $resident->email,
+        ]);
     }
 
     public function test_approval_api_requires_a_valid_bearer_token(): void

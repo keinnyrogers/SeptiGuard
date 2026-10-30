@@ -8,6 +8,7 @@ use App\Models\Complaint;
 use App\Models\SepticSystem;
 use App\Models\TankReading;
 use App\Models\User;
+use App\Support\ResidentEmailConfiguration;
 use Illuminate\Support\Facades\Log;
 
 class ResidentNotificationService
@@ -152,11 +153,7 @@ class ResidentNotificationService
 
     private function emailConfigured(): bool
     {
-        return config('mail.default') === 'smtp'
-            && (string) config('mail.mailers.smtp.host') !== ''
-            && (string) config('mail.mailers.smtp.username') !== ''
-            && (string) config('mail.mailers.smtp.password') !== ''
-            && filter_var(config('mail.from.address'), FILTER_VALIDATE_EMAIL) !== false;
+        return ResidentEmailConfiguration::isConfigured();
     }
 
     private function firebaseConfigured(): bool

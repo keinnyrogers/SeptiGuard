@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Notifications\ResidentPasswordResetNotification;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -11,9 +12,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use App\Notifications\ResidentPasswordResetNotification;
 
-#[Fillable(['name', 'email', 'password', 'role', 'account_status', 'demo_mode'])]
+#[Fillable(['name', 'email', 'password', 'role', 'account_status', 'rejection_reason', 'anonymized_at', 'demo_mode'])]
 #[Hidden(['password', 'remember_token', 'api_token_hash'])]
 class User extends Authenticatable
 {

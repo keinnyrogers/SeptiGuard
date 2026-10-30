@@ -42,7 +42,7 @@ export default function TankPanel({ tank, onClose, onAction = () => {}, onRecord
   const [performedOn, setPerformedOn] = useState(localDateInputValue);
   const [savingDesludging, setSavingDesludging] = useState(false);
   const [desludgingError, setDesludgingError] = useState("");
-  const [desludgingSaved, setDesludgingSaved] = useState(false);
+  const [desludgingSaved, setDesludgingSaved] = useState("");
 
   useEffect(() => {
     if (!tank) {
@@ -164,7 +164,7 @@ export default function TankPanel({ tank, onClose, onAction = () => {}, onRecord
               <div>
                 <h3 className="text-sm font-semibold">Record completed desludging</h3>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Existing readings stay in history. Forecasting will restart from readings after the service date.
+                  Existing readings stay in history. A provisional estimate may use the previous fill rate until enough post-service readings are collected.
                 </p>
               </div>
               <div className="space-y-1">
@@ -177,7 +177,7 @@ export default function TankPanel({ tank, onClose, onAction = () => {}, onRecord
                   onChange={(date) => {
                     setPerformedOn(date);
                     setDesludgingError("");
-                    setDesludgingSaved(false);
+                    setDesludgingSaved("");
                   }}
                   placeholder="Choose completion date"
                 />
@@ -185,7 +185,7 @@ export default function TankPanel({ tank, onClose, onAction = () => {}, onRecord
               {desludgingError && <p role="alert" className="text-xs text-danger">{desludgingError}</p>}
               {desludgingSaved && (
                 <p role="status" className="flex items-center gap-1 text-xs text-success">
-                  <Check className="h-3.5 w-3.5" /> Desludging recorded.
+                  <Check className="h-3.5 w-3.5" /> {desludgingSaved}
                 </p>
               )}
               <button
@@ -194,10 +194,10 @@ export default function TankPanel({ tank, onClose, onAction = () => {}, onRecord
                 onClick={async () => {
                   setSavingDesludging(true);
                   setDesludgingError("");
-                  setDesludgingSaved(false);
+                  setDesludgingSaved("");
                   try {
-                    await onRecordDesludging(performedOn);
-                    setDesludgingSaved(true);
+                    const result = await onRecordDesludging(performedOn);
+                    setDesludgingSaved(typeof result === "string" ? result : "Desludging recorded.");
                   } catch (error) {
                     setDesludgingError(error.message);
                   } finally {
@@ -210,6 +210,7 @@ export default function TankPanel({ tank, onClose, onAction = () => {}, onRecord
               </button>
             </section>
           )}
+
         </div>
 
         <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-border bg-card px-5 py-4 sm:flex-row sm:justify-end">

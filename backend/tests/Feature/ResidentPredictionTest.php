@@ -8,6 +8,7 @@ use App\Models\TankReading;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -139,6 +140,64 @@ class ResidentPredictionTest extends TestCase
         $this->assertDatabaseCount('tank_readings', 4);
     }
 
+    public function test_forecast_sends_pre_service_history_separately_for_provisional_estimate(): void
+    {
+        config([
+            'services.prediction.url' => 'http://127.0.0.1:8001',
+            'services.prediction.api_key' => 'test-prediction-key',
+            'services.prediction.timeout' => 5,
+        ]);
+        Http::fake([
+            '127.0.0.1:8001/forecast' => Http::response([
+                'data' => [
+                    'status' => 'provisional',
+                    'message' => 'Provisional estimate.',
+                    'current_fill' => 8,
+                    'daily_points' => 1,
+                    'readings_used' => 1,
+                    'days_observed' => 0,
+                    'history' => [],
+                    'fill_rate_per_day' => 4,
+                    'trend_fit_percent' => null,
+                    'days_to_critical' => 18,
+                    'predicted_critical_at' => now()->addDays(18)->toISOString(),
+                    'threshold_percentage' => 80,
+                    'as_of' => now()->toISOString(),
+                    'method' => 'previous-cycle fill rate rebased to post-desludging readings',
+                ],
+            ]),
+        ]);
+        $resident = $this->approvedResident();
+        $system = SepticSystem::factory()->create(['user_id' => $resident->id]);
+        $serviceDate = now()->subDay()->toDateString();
+        TankDesludging::query()->create([
+            'septic_system_id' => $system->id,
+            'performed_on' => $serviceDate,
+        ]);
+        $this->addReading($system, 30, now()->subDays(4)->setTime(12, 0));
+        $this->addReading($system, 34, now()->subDays(3)->setTime(12, 0));
+        $this->addReading($system, 38, now()->subDays(2)->setTime(12, 0));
+        $this->addReading($system, 8, now()->setTime(12, 0));
+
+        $this->withToken('prediction-token')
+            ->getJson('/api/resident/prediction')
+            ->assertOk()
+            ->assertJsonPath('data.status', 'provisional')
+            ->assertJsonPath('data.data_source', 'live');
+
+        Http::assertSent(function (Request $request) use ($serviceDate): bool {
+            $this->assertCount(1, $request['history']);
+            $this->assertCount(3, $request['prior_history']);
+            $this->assertSame(now()->toDateString(), $request['history'][0]['reading_date']);
+            $this->assertSame(now()->subDays(4)->toDateString(), $request['prior_history'][0]['reading_date']);
+            $this->assertSame(now()->subDays(2)->toDateString(), $request['prior_history'][2]['reading_date']);
+            $this->assertLessThan($serviceDate, $request['prior_history'][2]['reading_date']);
+
+            return $request->url() === 'http://127.0.0.1:8001/forecast';
+        });
+        $this->assertDatabaseCount('tank_readings', 4);
+    }
+
     public function test_prediction_uses_simulated_history_when_latest_eligible_reading_is_simulated(): void
     {
         config([
@@ -237,10 +296,9 @@ class ResidentPredictionTest extends TestCase
     private function addReading(
         SepticSystem $system,
         float $fill,
-        \Illuminate\Support\Carbon $measuredAt,
+        Carbon $measuredAt,
         string $source = 'sensor',
-    ): void
-    {
+    ): void {
         TankReading::factory()->create([
             'septic_system_id' => $system->id,
             'fill_level_percentage' => $fill,

@@ -3,9 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\ResidentRegistrationStatusEmailService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use RuntimeException;
 
 class AdminResidentController extends Controller
 {
@@ -57,19 +61,46 @@ class AdminResidentController extends Controller
         ], 201);
     }
 
-    public function updateApproval(Request $request, User $user): JsonResponse
-    {
+    public function updateApproval(
+        Request $request,
+        User $user,
+        ResidentRegistrationStatusEmailService $emailService,
+    ): JsonResponse {
         $validated = $request->validate([
             'status' => ['required', 'in:approved,rejected'],
+            'rejection_reason' => ['required_if:status,rejected', 'nullable', 'string', 'max:1000'],
         ]);
 
         abort_unless($user->role === 'resident' && $user->account_status === 'pending', 404);
 
-        $user->update(['account_status' => $validated['status']]);
+        $rejectionReason = $validated['status'] === 'rejected'
+            ? trim($validated['rejection_reason'])
+            : null;
+        $emailQueued = false;
+        DB::transaction(function () use ($user, $validated, $rejectionReason, $emailService, &$emailQueued): void {
+            $user->update([
+                'account_status' => $validated['status'],
+                'rejection_reason' => $rejectionReason,
+            ]);
+            $emailQueued = $emailService->queueStatusEmail($user, $validated['status'], $rejectionReason);
+
+            if ($validated['status'] === 'rejected') {
+                $this->anonymizeResidentRecord($user, true);
+            }
+        });
+
+        $user->refresh();
         $user->load(['residentProfile', 'septicSystem']);
 
+        $message = match (true) {
+            $validated['status'] === 'rejected' && $emailQueued => 'Resident registration declined and email released. Status email queued.',
+            $validated['status'] === 'rejected' => 'Resident registration declined and email released, but no email was queued because SMTP is not configured.',
+            $emailQueued => 'Resident account approved. Status email queued.',
+            default => 'Resident account approved, but no email was queued because SMTP is not configured.',
+        };
+
         return response()->json([
-            'message' => 'Resident account '.($validated['status'] === 'approved' ? 'approved' : 'rejected').'.',
+            'message' => $message,
             'data' => $this->residentData($user),
         ]);
     }
@@ -91,6 +122,59 @@ class AdminResidentController extends Controller
         ]);
     }
 
+    public function anonymizeDeactivated(User $user): JsonResponse
+    {
+        abort_unless(
+            $user->role === 'resident' && in_array($user->account_status, ['inactive', 'rejected'], true),
+            404,
+        );
+
+        DB::transaction(function () use ($user): void {
+            $this->anonymizeResidentRecord($user);
+        });
+
+        $user->refresh();
+        $user->load(['residentProfile', 'septicSystem']);
+
+        return response()->json([
+            'message' => 'Resident account removed. The resident name and complaint/service history were retained, and the original email can be used to register again.',
+            'data' => $this->residentData($user),
+        ]);
+    }
+
+    private function anonymizeResidentRecord(User $user, bool $preserveRejectionReason = false): void
+    {
+        $profile = $user->residentProfile;
+        $profilePhotoPath = $profile?->profile_photo_path;
+        if ($profilePhotoPath && ! Storage::disk('local')->delete($profilePhotoPath)) {
+            throw new RuntimeException('The resident profile photo could not be removed.');
+        }
+
+        $user->septicSystem?->update(['user_id' => null]);
+        $user->residentPushTokens()->delete();
+        $user->septiNotifications()->delete();
+        DB::table('resident_information_change_requests')
+            ->where('user_id', $user->id)
+            ->delete();
+
+        $user->update([
+            'email' => 'deleted-'.$user->id.'-'.Str::uuid().'@deleted.invalid',
+            'password' => Str::random(64),
+            'account_status' => 'deleted',
+            'rejection_reason' => $preserveRejectionReason ? $user->rejection_reason : null,
+            'api_token_hash' => null,
+            'anonymized_at' => now(),
+        ]);
+
+        $profile?->update([
+            'profile_photo_path' => null,
+            'address' => 'Removed',
+            'contact_number' => 'Removed',
+            'household_members' => 0,
+            'notes' => null,
+        ]);
+    }
+
     /** @return array<string, mixed> */
     private function residentData(User $user): array
     {
@@ -105,6 +189,7 @@ class AdminResidentController extends Controller
             'fill_level' => null,
             'tank_status' => null,
             'status' => $user->account_status,
+            'rejection_reason' => $user->rejection_reason,
             'is_active' => $user->account_status === 'approved',
             'last_activity' => $user->updated_at?->toISOString(),
             'recent_complaints' => $user->complaints

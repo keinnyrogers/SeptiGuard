@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\SendResidentUpdateEmail;
 use App\Models\ResidentInformationChangeRequest;
 use App\Models\ResidentProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class ResidentInformationChangeTest extends TestCase
@@ -118,9 +120,12 @@ class ResidentInformationChangeTest extends TestCase
 
     public function test_hoa_admin_can_approve_a_request_and_apply_the_profile_change(): void
     {
+        Queue::fake();
+        $this->configureSmtp();
         $resident = User::factory()->create([
             'role' => 'resident',
             'account_status' => 'approved',
+            'demo_mode' => false,
             'name' => 'Old Name',
         ]);
         ResidentProfile::query()->create([
@@ -147,10 +152,48 @@ class ResidentInformationChangeTest extends TestCase
                 'status' => 'approved',
             ])
             ->assertOk()
-            ->assertJsonPath('data.status', 'approved');
+            ->assertJsonPath('data.status', 'approved')
+            ->assertJsonPath('message', 'Request approved. Resident email queued.');
 
         $this->assertSame('09987654321', $resident->residentProfile()->firstOrFail()->fresh()->contact_number);
         $this->assertSame($admin->id, $changeRequest->fresh()->reviewed_by);
+        Queue::assertPushed(
+            SendResidentUpdateEmail::class,
+            fn (SendResidentUpdateEmail $job): bool => $job->residentEmail === $resident->email
+                && str_contains($job->message, 'approved'),
+        );
+    }
+
+    public function test_hoa_admin_can_reject_a_request_and_queue_a_resident_email(): void
+    {
+        Queue::fake();
+        $this->configureSmtp();
+        $resident = User::factory()->create([
+            'role' => 'resident',
+            'account_status' => 'approved',
+            'demo_mode' => false,
+        ]);
+        $changeRequest = ResidentInformationChangeRequest::query()->create([
+            'user_id' => $resident->id,
+            'field' => 'address',
+            'current_value' => 'Blk 1 Lot 1',
+            'requested_value' => 'Blk 8 Lot 9',
+        ]);
+        $admin = User::factory()->create(['role' => 'hoa_admin']);
+
+        $this->withToken($this->tokenFor($admin))
+            ->patchJson("/api/admin/residents/information-change-requests/{$changeRequest->id}/review", [
+                'status' => 'rejected',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'rejected')
+            ->assertJsonPath('message', 'Request rejected. Resident email queued.');
+
+        Queue::assertPushed(
+            SendResidentUpdateEmail::class,
+            fn (SendResidentUpdateEmail $job): bool => $job->residentEmail === $resident->email
+                && str_contains($job->message, 'declined'),
+        );
     }
 
     public function test_hoa_admin_can_approve_an_address_change_request(): void
@@ -214,5 +257,16 @@ class ResidentInformationChangeTest extends TestCase
         $user->forceFill(['api_token_hash' => hash('sha256', $token)])->save();
 
         return $token;
+    }
+
+    private function configureSmtp(): void
+    {
+        config([
+            'mail.default' => 'smtp',
+            'mail.mailers.smtp.host' => 'smtp.example.com',
+            'mail.mailers.smtp.username' => 'hoa@example.com',
+            'mail.mailers.smtp.password' => 'test-password',
+            'mail.from.address' => 'hoa@example.com',
+        ]);
     }
 }

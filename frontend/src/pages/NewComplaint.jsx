@@ -10,6 +10,7 @@ import { BrandMark } from "@/components/BrandLogo";
 import { createResidentComplaint } from "../api.js";
 import ThemedSelect from "../components/ThemedSelect.jsx";
 import ResidentAvatar from "../components/ResidentAvatar.jsx";
+import NotificationPopover from "../components/NotificationPopover.jsx";
 
 /* ==================================================================
    SeptiGuard — File New Complaint (Resident)
@@ -241,12 +242,15 @@ export default function NewComplaint() {
               Resident Portal › Complaints › New Complaint
             </p>
           </div>
-          {draftSavedAt && (
-            <span className="flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-3 py-1.5 text-[11px] text-muted-foreground">
-              <Save className="h-3 w-3" />
-              Draft autosaved · {draftSavedAt}
-            </span>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            {draftSavedAt && (
+              <span className="hidden items-center gap-1.5 rounded-md border border-border bg-muted/40 px-3 py-1.5 text-[11px] text-muted-foreground sm:flex">
+                <Save className="h-3 w-3" />
+                Draft autosaved · {draftSavedAt}
+              </span>
+            )}
+            <NotificationPopover token={token} demoMode={user?.demo_mode} onViewAll={() => navigate("/alerts")} />
+          </div>
         </header>
 
         <main className="mx-auto max-w-[1440px] space-y-5 p-4 sm:p-7">

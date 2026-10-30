@@ -25,6 +25,7 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
+#include <ArduinoOTA.h>
 #include "secrets.h"
 #include <ctype.h>
 #include <math.h>
@@ -112,6 +113,7 @@ unsigned long lastMqttAttempt = 0;
 unsigned long wifiConnectStartedAt = 0;
 bool wifiConnectInProgress = false;
 bool wifiWasConnected = false;
+bool otaStarted = false;
 
 const unsigned long WIFI_RETRY_INTERVAL_MS = 5000;
 const unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000;
@@ -429,6 +431,20 @@ void connectWiFi() {
   wifiConnectStartedAt = now;
 }
 
+void beginOtaIfConnected() {
+  if (WiFi.status() != WL_CONNECTED || otaStarted) {
+    return;
+  }
+
+  ArduinoOTA.setHostname(DEVICE_ID.c_str());
+  ArduinoOTA.setPassword(OTA_PASSWORD);
+  ArduinoOTA.begin();
+  otaStarted = true;
+
+  Serial.print("OTA ready on this Wi-Fi network as ");
+  Serial.println(DEVICE_ID);
+}
+
 // --------------------------------------------------
 // MQTT connection
 // --------------------------------------------------
@@ -594,6 +610,10 @@ void setup() {
 void loop() {
   readSerialCommands();
   connectWiFi();
+  beginOtaIfConnected();
+  if (otaStarted) {
+    ArduinoOTA.handle();
+  }
   connectMQTT();
 
   if (mqttClient.connected()) {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   BarChart3,
@@ -13,8 +13,10 @@ import {
   Wrench,
 } from "lucide-react";
 import { AdminSidebar } from "@/components/AdminSidebar";
+import AdminNotificationPopover from "@/components/AdminNotificationPopover";
 import ThemedSelect from "../components/ThemedSelect.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { SAMPLE_DATA, CATEGORY_LABELS, STATUS_LABELS } from "@/data/complaints";
 import { SAMPLE_RESIDENTS } from "@/data/residents";
 import { DATE_RANGES, REPORT_TYPES, SAMPLE_REPORTS } from "@/data/reports";
@@ -146,12 +148,13 @@ export default function AdminReports() {
     <div className="min-h-screen bg-background">
       <AdminSidebar open={menuOpen} setOpen={setMenuOpen} navigate={navigate} user={user} active="Reports" signOut={signOut} />
       <main className="min-w-0 flex-1 lg:ml-52">
-        <header className="flex min-h-20 items-center gap-3 border-b border-border px-4 py-4 sm:px-7">
+        <header className="flex min-h-20 items-center justify-between gap-3 border-b border-border px-4 py-4 sm:px-7">
           <button type="button" onClick={() => setMenuOpen(true)} aria-label="Open menu" className="shrink-0 rounded-md border border-border p-2 lg:hidden"><Menu className="h-4 w-4" /></button>
           <div className="min-w-0">
             <p className="truncate text-[10px] text-muted-foreground sm:text-xs">Admin Portal › Reports</p>
             <h1 className="mt-1 font-display text-lg font-bold sm:text-xl">Reports &amp; Analytics</h1>
           </div>
+          <AdminNotificationPopover token={token} navigate={navigate} onViewAll={() => navigate("/admin/residents")} />
         </header>
         <div className="px-5 py-6 md:px-8">
 
@@ -322,14 +325,17 @@ function LiveAdminReports({ token, user, menuOpen, setMenuOpen, navigate, signOu
   const [error, setError] = useState("");
   const [retryKey, setRetryKey] = useState(0);
 
-  useEffect(() => {
-    let active = true;
-    fetchAdminReports(token, dateRange)
-      .then((report) => { if (active) setData(report); })
-      .catch((requestError) => { if (active) setError(requestError.message); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [token, dateRange, retryKey]);
+  useAutoRefresh(async () => {
+    if (!token) return;
+    try {
+      setData(await fetchAdminReports(token, dateRange));
+      setError("");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setLoading(false);
+    }
+  }, `${token}:${dateRange}:${retryKey}`);
 
   const summary = data?.summary;
   const categories = data?.category_counts ?? {};
@@ -349,12 +355,13 @@ function LiveAdminReports({ token, user, menuOpen, setMenuOpen, navigate, signOu
     <div className="min-h-screen bg-background">
       <AdminSidebar open={menuOpen} setOpen={setMenuOpen} navigate={navigate} user={user} active="Reports" signOut={signOut} />
       <main className="min-w-0 flex-1 lg:ml-52">
-        <header className="flex min-h-20 items-center gap-3 border-b border-border px-4 py-4 sm:px-7">
+        <header className="flex min-h-20 items-center justify-between gap-3 border-b border-border px-4 py-4 sm:px-7">
           <button type="button" onClick={() => setMenuOpen(true)} aria-label="Open menu" className="shrink-0 rounded-md border border-border p-2 lg:hidden"><Menu className="h-4 w-4" /></button>
           <div>
             <p className="text-[10px] text-muted-foreground sm:text-xs">Admin Portal › Reports</p>
             <h1 className="mt-1 font-display text-lg font-bold sm:text-xl">Reports &amp; Analytics</h1>
           </div>
+          <AdminNotificationPopover token={token} navigate={navigate} onViewAll={() => navigate("/admin/residents")} />
         </header>
         <div className="px-5 py-6 md:px-8">
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">

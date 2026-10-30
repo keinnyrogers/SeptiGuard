@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Users, Cpu, UserPlus, AlertTriangle, Pencil, Eye, Check, X, Menu } from "lucide-react";
+import { Search, Users, Cpu, UserPlus, AlertTriangle, Pencil, Eye, Check, X, Menu, Trash2 } from "lucide-react";
 import { AdminSidebar } from "@/components/AdminSidebar";
+import AdminNotificationPopover from "@/components/AdminNotificationPopover";
 import { formatResidentAddress } from "@/lib/addresses";
 import ResidentPanel from "@/components/ResidentPanel";
 import {
@@ -13,8 +14,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import {
   createAdminResident,
+  anonymizeDeactivatedAdminResident,
   deactivateAdminResident,
   fetchAdminInformationChangeRequests,
   fetchAdminResidents,
@@ -28,6 +31,7 @@ const ACCOUNT_BADGE = {
   approved: "bg-success/15 text-success",
   rejected: "bg-danger/15 text-danger",
   inactive: "bg-muted text-muted-foreground",
+  deleted: "bg-muted text-muted-foreground",
 };
 const TANK_BADGE = {
   normal: "bg-success/15 text-success",
@@ -64,15 +68,21 @@ export default function AdminResidents() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [approvalError, setApprovalError] = useState("");
+  const [approvalNotice, setApprovalNotice] = useState("");
   const [updatingId, setUpdatingId] = useState(null);
   const [informationRequests, setInformationRequests] = useState([]);
   const [informationRequestsLoading, setInformationRequestsLoading] = useState(true);
   const [informationRequestsError, setInformationRequestsError] = useState("");
+  const [informationRequestsNotice, setInformationRequestsNotice] = useState("");
   const [reviewingRequestId, setReviewingRequestId] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
   const [residentToDeactivate, setResidentToDeactivate] = useState(null);
+  const [residentToAnonymize, setResidentToAnonymize] = useState(null);
+  const [residentToReject, setResidentToReject] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState("");
   const [deactivationError, setDeactivationError] = useState("");
+  const [anonymizeError, setAnonymizeError] = useState("");
   const [creatingResident, setCreatingResident] = useState(false);
   const [createResidentError, setCreateResidentError] = useState("");
   const [createResidentSuccess, setCreateResidentSuccess] = useState("");
@@ -85,53 +95,46 @@ export default function AdminResidents() {
     password_confirmation: "",
   });
 
-  useEffect(() => {
-    let isCurrent = true;
-
+  useAutoRefresh(async () => {
     if (!token) {
-      return () => {
-        isCurrent = false;
-      };
+      setLoading(false);
+      setInformationRequestsLoading(false);
+      return;
     }
 
-    fetchAdminResidents(token)
-      .then((items) => {
-        if (isCurrent) setResidents(items);
-      })
-      .catch((error) => {
-        if (isCurrent) setLoadError(error.message);
-      })
-      .finally(() => {
-        if (isCurrent) setLoading(false);
-      });
+    const [residentResult, requestResult] = await Promise.allSettled([
+      fetchAdminResidents(token),
+      fetchAdminInformationChangeRequests(token),
+    ]);
 
-    fetchAdminInformationChangeRequests(token)
-      .then((items) => {
-        if (isCurrent) setInformationRequests(items);
-      })
-      .catch((error) => {
-        if (isCurrent) setInformationRequestsError(error.message);
-      })
-      .finally(() => {
-        if (isCurrent) setInformationRequestsLoading(false);
-      });
-
-    return () => {
-      isCurrent = false;
-    };
-  }, [token, reloadKey]);
+    if (residentResult.status === "fulfilled") {
+      setResidents(residentResult.value);
+      setLoadError("");
+    } else {
+      setLoadError(residentResult.reason.message);
+    }
+    if (requestResult.status === "fulfilled") {
+      setInformationRequests(requestResult.value);
+      setInformationRequestsError("");
+    } else {
+      setInformationRequestsError(requestResult.reason.message);
+    }
+    setLoading(false);
+    setInformationRequestsLoading(false);
+  }, `${token}:${reloadKey}`);
 
   const inTab = (r, t) => {
     if (t === "active") return r.status === "approved" && r.is_active;
     if (t === "pending") return r.status === "pending";
     if (t === "flagged") return r.status === "rejected";
     if (t === "inactive") return r.status === "inactive";
+    if (t === "deleted") return r.status === "deleted";
     return true;
   };
 
   const counts = useMemo(() => {
     const c = {};
-    ["all", "active", "pending", "flagged", "inactive"].forEach((t) => (c[t] = residents.filter((r) => inTab(r, t)).length));
+    ["all", "active", "pending", "flagged", "inactive", "deleted"].forEach((t) => (c[t] = residents.filter((r) => inTab(r, t)).length));
     c.sensors = residents.filter((r) => r.tank_status !== null).length;
     return c;
   }, [residents]);
@@ -144,12 +147,18 @@ export default function AdminResidents() {
     );
   }, [residents, tab, query]);
 
-  async function setStatus(id, status) {
+  async function setStatus(id, status, reason = null) {
     setUpdatingId(id);
     setApprovalError("");
+    setApprovalNotice("");
     try {
-      const result = await updateAdminResidentApproval(token, id, status);
+      const result = await updateAdminResidentApproval(token, id, status, reason);
       setResidents((prev) => prev.map((resident) => (resident.id === id ? result.data : resident)));
+      setApprovalNotice(result.message);
+      if (status === "rejected") {
+        setResidentToReject(null);
+        setRejectionReason("");
+      }
     } catch (error) {
       setApprovalError(error.message);
     } finally {
@@ -157,14 +166,27 @@ export default function AdminResidents() {
     }
   }
 
+  async function rejectResident() {
+    if (!residentToReject) return;
+    const reason = rejectionReason.trim();
+    if (!reason) {
+      setApprovalError("Enter a reason so the resident knows why the registration was declined.");
+      return;
+    }
+
+    await setStatus(residentToReject.id, "rejected", reason);
+  }
+
   async function reviewInformationRequest(requestId, status) {
     setReviewingRequestId(requestId);
     setInformationRequestsError("");
+    setInformationRequestsNotice("");
     try {
       const result = await reviewAdminInformationChangeRequest(token, requestId, status);
       setInformationRequests((requests) =>
         requests.map((item) => (item.id === requestId ? result.data : item)),
       );
+      setInformationRequestsNotice(result.message);
     } catch (error) {
       setInformationRequestsError(error.message);
     } finally {
@@ -181,6 +203,20 @@ export default function AdminResidents() {
       setResidentToDeactivate(null);
     } catch (error) {
       setDeactivationError(error.message);
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
+  async function anonymizeResident(resident) {
+    setUpdatingId(resident.id);
+    setAnonymizeError("");
+    try {
+      const result = await anonymizeDeactivatedAdminResident(token, resident.id);
+      setResidents((prev) => prev.map((item) => (item.id === resident.id ? result.data : item)));
+      setResidentToAnonymize(null);
+    } catch (error) {
+      setAnonymizeError(error.message);
     } finally {
       setUpdatingId(null);
     }
@@ -248,6 +284,7 @@ export default function AdminResidents() {
     ["pending", "Pending Approval"],
     ["flagged", "Flagged"],
     ["inactive", "Inactive"],
+    ["deleted", "Removed"],
   ];
   const requestError = token ? loadError : "Sign in with an HOA admin account to view resident registrations.";
   const field = "h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-ring";
@@ -272,11 +309,14 @@ export default function AdminResidents() {
               <h1 className="mt-1 font-display text-lg font-bold sm:text-xl">Resident &amp; Household Management</h1>
             </div>
           </div>
-          {activeSection === "residents" && (
-            <button type="button" onClick={() => { setCreateResidentSuccess(""); setCreateOpen(true); }} className="flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:opacity-90 sm:h-10 sm:gap-2 sm:px-4 sm:text-sm">
-              <UserPlus className="h-4 w-4" /> <span className="whitespace-nowrap">Add Resident</span>
-            </button>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            {activeSection === "residents" && (
+              <button type="button" onClick={() => { setCreateResidentSuccess(""); setCreateOpen(true); }} className="flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:opacity-90 sm:h-10 sm:gap-2 sm:px-4 sm:text-sm">
+                <UserPlus className="h-4 w-4" /> <span className="whitespace-nowrap">Add Resident</span>
+              </button>
+            )}
+            <AdminNotificationPopover token={token} navigate={navigate} onViewAll={() => navigate("/admin/residents")} />
+          </div>
         </header>
         <div className="px-5 py-6 md:px-8">
 
@@ -340,7 +380,8 @@ export default function AdminResidents() {
           ))}
         </div>
 
-        {approvalError && <p role="alert" className="mt-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">{approvalError}</p>}
+        {approvalNotice && <p role="status" className="mt-4 rounded-md border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">{approvalNotice}</p>}
+        {approvalError && !residentToReject && <p role="alert" className="mt-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">{approvalError}</p>}
 
         <div className="mt-4 overflow-x-auto rounded-lg border border-border bg-card">
           <table className="w-full min-w-[1000px] text-sm">
@@ -392,8 +433,31 @@ export default function AdminResidents() {
                             <Eye className="h-3.5 w-3.5" />View
                           </button>
                           <button disabled={updatingId === r.id} onClick={() => setStatus(r.id, "approved")} className="flex items-center gap-1 rounded-md bg-success/15 px-2.5 py-1 text-xs font-medium text-success hover:bg-success/25 disabled:cursor-wait disabled:opacity-50"><Check className="h-3.5 w-3.5" />{updatingId === r.id ? "Saving…" : "Approve"}</button>
-                          <button disabled={updatingId === r.id} onClick={() => setStatus(r.id, "rejected")} className="flex items-center gap-1 rounded-md bg-danger/15 px-2.5 py-1 text-xs font-medium text-danger hover:bg-danger/25 disabled:cursor-wait disabled:opacity-50"><X className="h-3.5 w-3.5" />Reject</button>
+                          <button
+                            type="button"
+                            disabled={updatingId === r.id}
+                            onClick={() => {
+                              setApprovalError("");
+                              setApprovalNotice("");
+                              setRejectionReason("");
+                              setResidentToReject(r);
+                            }}
+                            className="flex items-center gap-1 rounded-md bg-danger/15 px-2.5 py-1 text-xs font-medium text-danger hover:bg-danger/25 disabled:cursor-wait disabled:opacity-50"
+                          >
+                            <X className="h-3.5 w-3.5" />Reject
+                          </button>
                         </>
+                      ) : r.status === "deleted" ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedResident(r);
+                            setPanelMode("view");
+                          }}
+                          className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs hover:bg-muted"
+                        >
+                          <Eye className="h-3.5 w-3.5" />View retained history
+                        </button>
                       ) : (
                         <>
                           <button
@@ -429,6 +493,19 @@ export default function AdminResidents() {
                               <X className="h-3.5 w-3.5" />Deactivate
                             </button>
                           )}
+                          {["inactive", "rejected"].includes(r.status) && (
+                            <button
+                              type="button"
+                              disabled={updatingId === r.id}
+                              onClick={() => {
+                                setAnonymizeError("");
+                                setResidentToAnonymize(r);
+                              }}
+                              className="flex items-center gap-1 rounded-md bg-danger/15 px-2.5 py-1 text-xs font-medium text-danger hover:bg-danger/25 disabled:opacity-50"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />Delete account
+                            </button>
+                          )}
                         </>
                       )}
                     </div>
@@ -459,6 +536,7 @@ export default function AdminResidents() {
             <h2 className="font-display text-base font-semibold">Information change requests</h2>
             <p className="mt-1 text-xs text-muted-foreground">Approving a request updates the resident account. “Other” requests should be handled manually before marking resolved.</p>
           </div>
+          {informationRequestsNotice && <p role="status" className="mx-4 mt-4 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">{informationRequestsNotice}</p>}
           {informationRequestsError && <p role="alert" className="mx-4 mt-4 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{informationRequestsError}</p>}
           {informationRequestsLoading ? (
             <p className="p-6 text-center text-sm text-muted-foreground">Loading information change requests…</p>
@@ -583,6 +661,132 @@ export default function AdminResidents() {
               <Button type="submit" disabled={creatingResident}>{creatingResident ? "Creating…" : "Create approved account"}</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={residentToReject !== null}
+        onOpenChange={(open) => {
+          if (!open && updatingId === null) {
+            setResidentToReject(null);
+            setRejectionReason("");
+            setApprovalError("");
+          }
+        }}
+      >
+        <DialogContent className="border-border bg-card sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display">Decline resident registration?</DialogTitle>
+            <DialogDescription>
+              {residentToReject
+                ? `A required reason will be saved and emailed to ${residentToReject.email}.`
+                : "Provide a reason for the resident."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label htmlFor="resident-rejection-reason" className="text-sm font-medium">
+              Reason for declining
+            </label>
+            <textarea
+              id="resident-rejection-reason"
+              required
+              maxLength={1000}
+              rows={4}
+              value={rejectionReason}
+              onChange={(event) => {
+                setRejectionReason(event.target.value);
+                setApprovalError("");
+              }}
+              placeholder="Explain what needs to be corrected or why the registration cannot be approved."
+              className={`${field} min-h-24 resize-y py-2`}
+            />
+            <p className="text-xs text-muted-foreground">
+              This reason will be included in the resident’s email.
+            </p>
+          </div>
+          {approvalError && (
+            <p role="alert" className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              {approvalError}
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={updatingId !== null}
+              onClick={() => {
+                setResidentToReject(null);
+                setRejectionReason("");
+                setApprovalError("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={!residentToReject || updatingId === residentToReject.id || !rejectionReason.trim()}
+              onClick={rejectResident}
+            >
+              {residentToReject && updatingId === residentToReject.id ? "Declining…" : "Decline and email"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={residentToAnonymize !== null}
+        onOpenChange={(open) => {
+          if (!open && updatingId === null) {
+            setResidentToAnonymize(null);
+            setAnonymizeError("");
+          }
+        }}
+      >
+        <DialogContent className="border-border bg-card sm:max-w-md">
+          <DialogHeader>
+            <span className="mb-1 flex h-11 w-11 items-center justify-center rounded-full bg-danger/10 text-danger">
+              <Trash2 className="h-5 w-5" />
+            </span>
+            <DialogTitle className="font-display">Remove resident account?</DialogTitle>
+            <DialogDescription>
+              {residentToAnonymize && (
+                <>
+                  This will keep <span className="font-medium text-foreground">{residentToAnonymize.name}</span> and their complaint/service history,
+                  remove their profile and access details, and free <span className="font-medium text-foreground">{residentToAnonymize.email}</span> for a new registration.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <p className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
+            This cannot be undone. Only inactive or rejected accounts can be removed.
+          </p>
+          {anonymizeError && (
+            <p role="alert" className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              {anonymizeError}
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={updatingId !== null}
+              onClick={() => {
+                setResidentToAnonymize(null);
+                setAnonymizeError("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={!residentToAnonymize || updatingId === residentToAnonymize.id}
+              onClick={() => residentToAnonymize && anonymizeResident(residentToAnonymize)}
+            >
+              {residentToAnonymize && updatingId === residentToAnonymize.id ? "Removing…" : "Anonymize and free email"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

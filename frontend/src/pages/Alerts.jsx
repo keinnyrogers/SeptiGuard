@@ -14,6 +14,7 @@ import {
   markResidentNotificationRead,
   markResidentNotificationsRead,
 } from "../api.js";
+import NotificationPopover from "../components/NotificationPopover.jsx";
 
 /* ==================================================================
    SeptiGuard — Alerts / Notifications (Resident)
@@ -374,14 +375,17 @@ export default function Alerts() {
               <h1 className="mt-1 font-display text-xl font-bold">Notifications</h1>
             </div>
           </div>
-          <button
-            onClick={markAllRead}
-            disabled={isMarkingRead}
-            className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
-          >
-            <CheckCheck className="h-3.5 w-3.5" />
-            {isMarkingRead ? "Marking read..." : "Mark all as read"}
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              onClick={markAllRead}
+              disabled={isMarkingRead}
+              className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+            >
+              <CheckCheck className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{isMarkingRead ? "Marking read..." : "Mark all as read"}</span>
+            </button>
+            <NotificationPopover token={token} demoMode={user?.demo_mode} onViewAll={() => navigate("/alerts")} />
+          </div>
         </header>
 
         <main className="mx-auto max-w-[1440px] space-y-5 p-4 sm:p-7">

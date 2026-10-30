@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Boxes,
@@ -15,6 +15,7 @@ import DispatchModal from "@/components/DispatchModal";
 import AdminNotificationPopover from "@/components/AdminNotificationPopover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { COMMUNITY_ADDRESS, formatResidentAddress } from "@/lib/addresses";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useAuth } from "../context/AuthContext.jsx";
 import { dispatchAdminDesludging, fetchAdminTanks } from "../api.js";
 
@@ -27,47 +28,43 @@ export default function AdminDashboard({ navigate }) {
   const [dashboardData, setDashboardData] = useState(null);
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [refreshKey, setRefreshKey] = useState(0);
   const soon = (name) => window.alert(`${name} will be connected in the next step.`);
   const signOut = async () => {
     if (await logout()) routerNavigate("/admin/login");
   };
   const goToTanks = navigate ?? (() => routerNavigate("/admin/tanks"));
-  useEffect(() => {
-    let current = true;
-    fetchAdminTanks(token)
-      .then((data) => {
-        if (!current) return;
-        setLoadError("");
-        const summary = data.summary ?? {};
-        const tanks = data.tanks ?? [];
-        setDashboardData({
-          ...summary,
-          tanks: tanks
-            .filter((tank) => tank.level !== null && tank.level >= 70)
-            .sort((a, b) => (b.level ?? 0) - (a.level ?? 0))
-            .slice(0, 5)
-            .map((tank) => ({
-              ...tank,
-              date: tank.measured_at ? new Date(tank.measured_at).toLocaleDateString() : "No reading",
-              action: tank.level >= 80 ? "Dispatch" : "Schedule",
-            })),
-          alerts: tanks
-            .filter((tank) => tank.level !== null && tank.level >= 80)
-            .sort((a, b) => (b.level ?? 0) - (a.level ?? 0))
-            .map((tank) => ({ ...tank, critical: true })),
-        });
-      })
-      .catch((error) => {
-        if (current) setLoadError(error.message);
-      })
-      .finally(() => {
-        if (current) setLoading(false);
+  useAutoRefresh(async () => {
+    if (!token) return;
+    try {
+      const data = await fetchAdminTanks(token);
+      setLoadError("");
+      const summary = data.summary ?? {};
+      const tanks = data.tanks ?? [];
+      setSelectedTank((current) => current
+        ? tanks.find((tank) => tank.system_id === current.system_id) ?? current
+        : null);
+      setDashboardData({
+        ...summary,
+        tanks: tanks
+          .filter((tank) => tank.level !== null && tank.level >= 70)
+          .sort((a, b) => (b.level ?? 0) - (a.level ?? 0))
+          .slice(0, 5)
+          .map((tank) => ({
+            ...tank,
+            date: tank.measured_at ? new Date(tank.measured_at).toLocaleDateString() : "No reading",
+            action: tank.level >= 80 ? "Dispatch" : "Schedule",
+          })),
+        alerts: tanks
+          .filter((tank) => tank.level !== null && tank.level >= 80)
+          .sort((a, b) => (b.level ?? 0) - (a.level ?? 0))
+          .map((tank) => ({ ...tank, critical: true })),
       });
-    return () => {
-      current = false;
-    };
-  }, [token, refreshKey]);
+    } catch (error) {
+      setLoadError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }, token);
   return (
     <div className="min-h-screen bg-background text-foreground lg:flex">
       <AdminSidebar open={open} setOpen={setOpen} navigate={navigate ?? routerNavigate} user={user} signOut={signOut} active="Dashboard" />

@@ -13,6 +13,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { BrandMark } from "@/components/BrandLogo";
 import ResidentAvatar from "../components/ResidentAvatar.jsx";
 import { fetchResidentPrediction } from "../api.js";
+import NotificationPopover from "../components/NotificationPopover.jsx";
 
 /* ==================================================================
    SeptiGuard — Predictions (Resident)
@@ -108,7 +109,9 @@ function createSampleData() {
 
 function createForecastViewData(forecast) {
   const isReady = forecast.status === "ready";
-  const predictedDate = isReady ? new Date(forecast.predicted_critical_at) : null;
+  const isProvisional = forecast.status === "provisional";
+  const hasPrediction = isReady || isProvisional;
+  const predictedDate = hasPrediction ? new Date(forecast.predicted_critical_at) : null;
   const latestHistory = forecast.history.at(-1);
   const formatChartDate = (dateKey) => {
     const [year, month, day] = dateKey.split("-").map(Number);
@@ -126,10 +129,10 @@ function createForecastViewData(forecast) {
   const curve = forecast.history.map((point, index) => ({
     date: formatChartDate(point.reading_date ?? point.measured_at.slice(0, 10)),
     historical: point.fill_percentage,
-    predicted: isReady && index === forecast.history.length - 1 ? point.fill_percentage : null,
+    predicted: hasPrediction && index === forecast.history.length - 1 ? point.fill_percentage : null,
   }));
 
-  for (let day = 1; isReady && day <= forecast.days_to_critical; day += 1) {
+  for (let day = 1; hasPrediction && day <= forecast.days_to_critical; day += 1) {
     const dateKey = addDaysToDateKey(
       latestHistory.reading_date ?? latestHistory.measured_at.slice(0, 10),
       day,
@@ -162,21 +165,32 @@ function createForecastViewData(forecast) {
     dataWindow: `${forecast.days_observed} days observed`,
     readingsUsed: forecast.readings_used,
     fillRate: forecast.fill_rate_per_day,
+    isProvisional,
     curve,
     recommendationMessage: forecast.message,
-    recommendations: isReady ? [
+    recommendations: hasPrediction ? [
       {
         icon: CalendarDays,
-        title: "Plan maintenance",
-        badge: "ESTIMATE",
-        tone: "urgent",
-        detail: `The trend is estimated to reach 80% around ${predictedFullText}. This is not a guaranteed forecast or service recommendation.`,
+        title: isProvisional ? "Provisional estimate" : "Plan maintenance",
+        badge: isProvisional ? "PROVISIONAL" : "ESTIMATE",
+        tone: isProvisional ? "advised" : "urgent",
+        detail: isProvisional
+          ? `Using the previous cycle's fill rate, the tank may reach 80% around ${predictedFullText}. This will update as new readings arrive.`
+          : `The trend is estimated to reach 80% around ${predictedFullText}. This is not a guaranteed forecast or service recommendation.`,
       },
     ] : [],
     insights: [
       { icon: Gauge, label: "Current fill", value: forecast.current_fill === null ? "--" : `${forecast.current_fill}%`, note: "Latest daily average", noteTone: "text-muted-foreground" },
-      { icon: TrendingUp, label: "Estimated fill rate", value: forecast.fill_rate_per_day === null ? "--" : `${forecast.fill_rate_per_day.toFixed(2)} %/day`, note: "Linear trend over daily averages", noteTone: "text-muted-foreground" },
-      { icon: CalendarDays, label: "Data window", value: `${forecast.daily_points} days`, note: `${forecast.readings_used} raw readings used`, noteTone: "text-muted-foreground" },
+      { icon: TrendingUp, label: "Estimated fill rate", value: forecast.fill_rate_per_day === null ? "--" : `${forecast.fill_rate_per_day.toFixed(2)} %/day`, note: isProvisional ? "Carried over from previous cycle" : "Linear trend over daily averages", noteTone: "text-muted-foreground" },
+      {
+        icon: CalendarDays,
+        label: "Data window",
+        value: `${forecast.daily_points} days`,
+        note: isProvisional
+          ? `${forecast.readings_used} new readings; ${forecast.prior_readings_used ?? 0} prior-cycle readings for rate`
+          : `${forecast.readings_used} raw readings used`,
+        noteTone: "text-muted-foreground",
+      },
       { icon: Gauge, label: "Trend fit", value: forecast.trend_fit_percent === null ? "--" : `${forecast.trend_fit_percent}%`, note: "R² fit, not a probability", noteTone: "text-muted-foreground" },
     ],
   };
@@ -330,9 +344,12 @@ export default function Predictions() {
               <h1 className="mt-1 font-display text-xl font-bold">Predictions</h1>
             </div>
           </div>
-          <div className="hidden items-center gap-2 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-medium text-primary sm:flex">
-            <Clock className="h-3.5 w-3.5" />
-            Updated {viewData.updated}
+          <div className="flex items-center gap-2">
+            <div className="hidden items-center gap-2 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-medium text-primary sm:flex">
+              <Clock className="h-3.5 w-3.5" />
+              Updated {viewData.updated}
+            </div>
+            <NotificationPopover token={token} demoMode={user?.demo_mode} onViewAll={() => navigate("/alerts")} />
           </div>
         </header>
 
@@ -342,10 +359,11 @@ export default function Predictions() {
               <p className="text-xs text-muted-foreground">
                 Forecasts are estimates based on recent tank readings, not a guarantee.
               </p>
-              <div role="status" className="rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-xs text-warning">
-                <strong>ESTIMATE ONLY — NOT A GUARANTEED FORECAST OR SERVICE RECOMMENDATION.</strong>{" "}
-                Based on available tank readings.
-              </div>
+              {viewData.isProvisional && (
+                <p role="status" className="rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-xs text-warning">
+                  Provisional estimate: using the previous cycle’s fill rate with the latest post-desludging reading. It will update after enough new readings are collected.
+                </p>
+              )}
             </>
           )}
 
@@ -361,7 +379,11 @@ export default function Predictions() {
                 </div>
                 <span className="flex h-fit items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
                   <Gauge className="h-3 w-3" />
-                  {viewData.trendFitPercent === null ? "Trend Fit unavailable" : `${viewData.trendFitPercent}% Trend Fit`}
+                  {viewData.isProvisional
+                    ? "Provisional estimate"
+                    : viewData.trendFitPercent === null
+                      ? "Trend Fit unavailable"
+                      : `${viewData.trendFitPercent}% Trend Fit`}
                 </span>
               </div>
 

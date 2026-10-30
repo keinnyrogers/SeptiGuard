@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -32,6 +32,7 @@ const AuthContext = createContext(undefined);
 
 export function AuthProvider({ children }) {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const portalRole = pathname.startsWith("/admin") ? "admin" : "resident";
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
@@ -41,6 +42,7 @@ export function AuthProvider({ children }) {
   const [logoutPromptOpen, setLogoutPromptOpen] = useState(false);
   const [logoutPending, setLogoutPending] = useState(false);
   const [logoutError, setLogoutError] = useState("");
+  const [sessionNotice, setSessionNotice] = useState(null);
   const logoutResolver = useRef(null);
   const profile = user?.resident_profile ?? user?.residentProfile;
   const profilePhotoPath = profile?.profile_photo_path;
@@ -60,6 +62,28 @@ export function AuthProvider({ children }) {
     }
     setReadyRole(portalRole);
   }, [portalRole]);
+
+  useEffect(() => {
+    function handleInvalidSession(event) {
+      const { role, token: rejectedToken } = event.detail ?? {};
+      if (!user || role !== user.role || rejectedToken !== token) return;
+
+      clearSession(role);
+      setUser(null);
+      setToken(null);
+      setLogoutPromptOpen(false);
+      setSessionNotice({
+        role,
+        message: role === "resident"
+          ? "Your session is no longer valid. Your account may have been deactivated by the HOA. Please contact the HOA if you need help restoring access."
+          : "Your admin session is no longer valid. Please sign in again.",
+      });
+      navigate(role === "admin" ? "/admin/login" : "/", { replace: true });
+    }
+
+    window.addEventListener("septiguard:session-invalid", handleInvalidSession);
+    return () => window.removeEventListener("septiguard:session-invalid", handleInvalidSession);
+  }, [navigate, token, user]);
 
   useEffect(() => {
     if (user?.demo_mode || !token || !profilePhotoPath) return undefined;
@@ -114,6 +138,7 @@ export function AuthProvider({ children }) {
     persistSession(newToken, newUser);
     setUser(newUser);
     setToken(newToken);
+    setSessionNotice(null);
     return newUser;
   }, []);
 
@@ -122,6 +147,7 @@ export function AuthProvider({ children }) {
     persistSession(newToken, newUser);
     setUser(newUser);
     setToken(newToken);
+    setSessionNotice(null);
     return newUser;
   }, []);
 
@@ -176,12 +202,13 @@ export function AuthProvider({ children }) {
       profilePhotoUrl,
       isAuthenticated: isReady && !!token && !!user,
       isReady,
+      sessionNotice,
       login,
       loginAdmin,
       logout,
       updateUser,
     }),
-    [user, token, profilePhotoUrl, isReady, login, loginAdmin, logout, updateUser],
+    [user, token, profilePhotoUrl, isReady, sessionNotice, login, loginAdmin, logout, updateUser],
   );
 
   return (

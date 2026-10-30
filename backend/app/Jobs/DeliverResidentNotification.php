@@ -29,7 +29,14 @@ class DeliverResidentNotification implements ShouldQueue
     {
         $notification = SeptiNotification::query()
             ->with('user')
-            ->findOrFail($this->notificationId);
+            ->find($this->notificationId);
+        if ($notification === null) {
+            Log::info('Queued resident email cancelled because its notification record was removed.', [
+                'notification_id' => $this->notificationId,
+            ]);
+
+            return;
+        }
         $resident = $notification->user;
 
         if ($notification->is_sent) {

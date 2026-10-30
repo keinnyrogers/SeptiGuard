@@ -8,6 +8,8 @@ This deployment keeps the hosted database separate from local data. It runs Lara
 - The Laravel container runs migrations only. Do not run `php artisan db:seed`: the default seeder creates demo accounts with a known password and sample tank records.
 - Keep all credentials in Railway/Cloudflare environment settings. Never commit `.env`, admin passwords, or service credentials.
 - Complaint and profile photos are private local files. Attach a Railway volume to the Laravel web service at `/var/www/html/storage/app/private` or photo uploads will not survive redeployments.
+- Rejecting a resident registration automatically removes its login/profile details and releases the email for immediate reuse; the queued decline email keeps the original address and reason. The resident's name and complaint/service history remain on the archived record.
+- Removing a deactivated resident also releases its email and removes login/profile details while retaining the resident's name and complaint/service history.
 - The current default MQTT broker is public and unauthenticated. Use it only for non-sensitive testing; do not send real resident data through it. The backend can use MQTT credentials and TLS, but the current ESP32 sketch only supports unauthenticated, unencrypted MQTT. Do not connect that firmware to real resident data or an authenticated broker until it has been updated.
 
 ## Railway services
@@ -44,6 +46,21 @@ FILESYSTEM_DISK=local
 BROADCAST_CONNECTION=reverb
 ```
 
+To email residents when their registration is approved or declined, an information-change request is approved or rejected, or completed desludging is recorded, configure SMTP in both the Laravel web and worker services:
+
+```text
+MAIL_MAILER=smtp
+MAIL_SCHEME=smtp
+MAIL_HOST=<SMTP host>
+MAIL_PORT=<SMTP port>
+MAIL_USERNAME=<SMTP username>
+MAIL_PASSWORD=<SMTP password or provider app password>
+MAIL_FROM_ADDRESS=<verified sender email>
+MAIL_FROM_NAME=SeptiGuard
+```
+
+The worker service must remain running to deliver queued resident emails. If SMTP is not configured, the admin action still completes, but the admin is told that no email was queued. A registration decline requires a reason; the reason is retained with the resident account and included in the decline email.
+
 Generate a fresh Laravel key locally with `php artisan key:generate --show` from `backend`; use the displayed key only as the Railway `APP_KEY` value. Do not reuse the local app key.
 
 For Reverb, generate a unique app ID, key, and secret, then set the same values in all Laravel services:
@@ -66,6 +83,7 @@ php artisan hoa-admin:create
 ```
 
 The command prompts for the admin name, email, and a password twice without echoing the password. It creates only that administrator; it does not add demo residents or tank readings.
+
 
 ## Cloudflare Pages frontend
 

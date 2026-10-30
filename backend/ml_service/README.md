@@ -12,7 +12,7 @@ This workspace's local setup is configured in the ignored `backend/.env`. For a 
 
 The script reads the API key from `backend/.env` without displaying it and binds the service to localhost. Install dependencies first with `python -m pip install -r .\backend\ml_service\requirements.txt` if needed. For deployment, run the service on a private network, use TLS or a trusted internal proxy, and configure the secret through the host's secret manager.
 
-Laravel sends only the authenticated resident's last 30 days of daily fill averages and timestamps. A service outage returns HTTP 503 from the resident prediction API; there is deliberately no silent PHP-algorithm fallback.
+Laravel sends the authenticated resident's last 30 days of daily fill averages and timestamps for the current service cycle. After a recorded desludging, it can also send up to 30 days of pre-service daily averages separately. If the post-service readings do not yet span three days, the service may return a clearly marked provisional estimate using the previous cycle's positive fill rate rebased to the latest post-service reading. Once enough post-service days exist, the normal regression over the new cycle takes over. Pre-service readings are never mixed into that new-cycle regression. A service outage returns HTTP 503 from the resident prediction API; there is deliberately no silent PHP-algorithm fallback.
 
 Run service unit tests with:
 

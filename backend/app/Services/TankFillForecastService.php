@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\SepticSystem;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -29,10 +30,48 @@ class TankFillForecastService
             $readings->whereDate('measured_at', '>', $latestDesludging->performed_on);
         }
 
-        $simulationForecast = (clone $readings)
+        $latestCurrentSource = (clone $readings)
             ->orderByDesc('measured_at')
             ->orderByDesc('id')
-            ->value('source') === 'simulated';
+            ->value('source');
+        $simulationForecast = $latestCurrentSource === 'simulated';
+
+        $priorHistory = [];
+        if ($latestDesludging !== null) {
+            $serviceDate = $latestDesludging->performed_on;
+            $priorReadings = $system->tankReadings()
+                ->where('measured_at', '>=', Carbon::parse($serviceDate)->subDays(30)->startOfDay())
+                ->whereDate('measured_at', '<', $serviceDate);
+            $previousDesludging = $system->desludgings()
+                ->where('performed_on', '<', $serviceDate)
+                ->latest('performed_on')
+                ->first();
+
+            if ($previousDesludging !== null) {
+                $priorReadings->whereDate('measured_at', '>', $previousDesludging->performed_on);
+            }
+
+            $priorSimulation = $latestCurrentSource === null
+                ? (clone $priorReadings)
+                    ->orderByDesc('measured_at')
+                    ->orderByDesc('id')
+                    ->value('source') === 'simulated'
+                : $simulationForecast;
+            $priorHistory = $priorReadings
+                ->where('source', $priorSimulation ? '=' : '!=', 'simulated')
+                ->selectRaw('DATE(measured_at) as reading_date, AVG(fill_level_percentage) as fill_percentage, COUNT(*) as readings_count, MAX(measured_at) as measured_at')
+                ->groupByRaw('DATE(measured_at)')
+                ->orderBy('reading_date')
+                ->get()
+                ->map(fn ($reading): array => [
+                    'reading_date' => $reading->reading_date,
+                    'measured_at' => $reading->measured_at,
+                    'fill_percentage' => round((float) $reading->fill_percentage, 2),
+                    'readings_count' => (int) $reading->readings_count,
+                ])
+                ->values()
+                ->all();
+        }
 
         $history = $readings
             ->where('source', $simulationForecast ? '=' : '!=', 'simulated')
@@ -56,6 +95,7 @@ class TankFillForecastService
             ->post($url.'/forecast', [
                 'as_of' => $now->toISOString(),
                 'history' => $history,
+                'prior_history' => $priorHistory,
             ])
             ->throw();
 

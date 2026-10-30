@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNowStrict, isAfter, isBefore, startOfDay, endOfDay } from "date-fns";
 import {
@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { AdminSidebar } from "@/components/AdminSidebar";
+import AdminNotificationPopover from "@/components/AdminNotificationPopover";
 import { ComplaintPanel } from "@/components/ComplaintPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useAuth } from "../context/AuthContext.jsx";
 import {
   CATEGORY_LABELS,
@@ -75,14 +77,21 @@ export default function AdminComplaints() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  useEffect(() => {
-    let current = true;
-    fetchAdminComplaints(token)
-      .then((items) => { if (current) setComplaints(items); })
-      .catch((error) => { if (current) setLoadError(error.message); })
-      .finally(() => { if (current) setLoading(false); });
-    return () => { current = false; };
-  }, [token]);
+  useAutoRefresh(async () => {
+    if (!token) return;
+    try {
+      const items = await fetchAdminComplaints(token);
+      setComplaints(items);
+      setActive((current) => current
+        ? items.find((item) => item.id === current.id) ?? current
+        : null);
+      setLoadError("");
+    } catch (error) {
+      setLoadError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }, token);
 
   const counts = useMemo(
     () => ({
@@ -188,12 +197,13 @@ export default function AdminComplaints() {
         }}
       />
       <main className="page-transition min-w-0 flex-1 lg:ml-52">
-        <header className="flex min-h-20 items-center gap-3 border-b border-border px-4 py-4 sm:px-7">
+        <header className="flex min-h-20 items-center justify-between gap-3 border-b border-border px-4 py-4 sm:px-7">
           <button type="button" onClick={() => setMenuOpen(true)} aria-label="Open menu" className="shrink-0 rounded-md border border-border p-2 lg:hidden"><Menu className="h-4 w-4" /></button>
           <div className="min-w-0">
             <p className="truncate text-[10px] text-muted-foreground sm:text-xs">Admin Portal › Complaints</p>
             <h1 className="mt-1 font-display text-lg font-bold sm:text-xl">Complaints Management</h1>
           </div>
+          <AdminNotificationPopover token={token} navigate={navigate} onViewAll={() => navigate("/admin/residents")} />
         </header>
         <div className="px-5 py-6 md:px-8">
 

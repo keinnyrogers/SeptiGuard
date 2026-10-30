@@ -11,6 +11,7 @@ import { BrandMark } from "@/components/BrandLogo";
 import ResidentAvatar from "../components/ResidentAvatar.jsx";
 import ResidentComplaintPanel from "../components/ResidentComplaintPanel.jsx";
 import { fetchResidentComplaints } from "../api.js";
+import NotificationPopover from "../components/NotificationPopover.jsx";
 
 /* ==================================================================
    SeptiGuard — My Complaints (Resident)
@@ -226,13 +227,16 @@ export default function Complaints() {
               <h1 className="mt-1 font-display text-xl font-bold">My Complaints</h1>
             </div>
           </div>
-          <button
-            onClick={() => navigate("/complaints/new")}
-            className="flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground sm:gap-2 sm:px-4 sm:text-sm"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="whitespace-nowrap">New Complaint</span>
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              onClick={() => navigate("/complaints/new")}
+              className="flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground sm:gap-2 sm:px-4 sm:text-sm"
+            >
+              <Plus className="h-4 w-4" />
+              <span className="whitespace-nowrap">New Complaint</span>
+            </button>
+            <NotificationPopover token={token} demoMode={user?.demo_mode} onViewAll={() => navigate("/alerts")} />
+          </div>
         </header>
 
         <main className="mx-auto max-w-[1440px] space-y-5 p-4 sm:p-7">

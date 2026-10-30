@@ -19,9 +19,9 @@ const SESSION_STORAGE_KEYS = {
 export async function fetchComplaintPhoto(token, photoUrl) {
   const photoPath = new URL(photoUrl, API_BASE_URL);
   const apiUrl = new URL(`${photoPath.pathname}${photoPath.search}`, API_BASE_URL);
-  const response = await fetch(apiUrl, {
+  const response = await authenticatedFetch(apiUrl, {
     headers: { Accept: "image/*", ...authHeader(token) },
-  });
+  }, token);
   if (!response.ok) {
     throw new Error("Could not load the complaint photo.");
   }
@@ -184,7 +184,7 @@ export async function registerRequest(payload) {
 async function adminResidentRequest(path, token, options = {}) {
   let response;
   try {
-    response = await fetch(`${API_BASE_URL}/api/admin/residents${path}`, {
+    response = await authenticatedFetch(`${API_BASE_URL}/api/admin/residents${path}`, {
       ...options,
       headers: {
         Accept: "application/json",
@@ -192,7 +192,7 @@ async function adminResidentRequest(path, token, options = {}) {
         ...(options.body ? { "Content-Type": "application/json" } : {}),
         ...options.headers,
       },
-    });
+    }, token);
   } catch {
     throw new Error("Could not reach the SeptiGuard server. Make sure the backend is running.");
   }
@@ -231,12 +231,12 @@ export function reviewAdminInformationChangeRequest(token, requestId, status) {
 }
 
 export async function fetchAdminTanks(token) {
-  const tankResponse = await fetch(`${API_BASE_URL}/api/admin/tanks`, {
+  const tankResponse = await authenticatedFetch(`${API_BASE_URL}/api/admin/tanks`, {
     headers: {
       Accept: "application/json",
       ...authHeader(token),
     },
-  });
+  }, token);
   const data = await tankResponse.json().catch(() => null);
   if (!tankResponse.ok) {
     throw new Error(data?.message ?? "Could not load tank data.");
@@ -246,7 +246,7 @@ export async function fetchAdminTanks(token) {
 }
 
 export async function recordAdminDesludging(token, tankId, performedOn) {
-  const response = await fetch(`${API_BASE_URL}/api/admin/tanks/${encodeURIComponent(tankId)}/desludgings`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}/api/admin/tanks/${encodeURIComponent(tankId)}/desludgings`, {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -254,17 +254,17 @@ export async function recordAdminDesludging(token, tankId, performedOn) {
       ...authHeader(token),
     },
     body: JSON.stringify({ performed_on: performedOn }),
-  });
+  }, token);
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     const validationMessage = data?.errors ? Object.values(data.errors)[0]?.[0] : null;
     throw new Error(validationMessage ?? data?.message ?? "Could not record completed desludging.");
   }
-  return data?.data ?? null;
+  return data?.data ? { ...data.data, message: data.message } : null;
 }
 
 export async function dispatchAdminDesludging(token, tankId, scheduledFor) {
-  const response = await fetch(`${API_BASE_URL}/api/admin/tanks/${encodeURIComponent(tankId)}/dispatch`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}/api/admin/tanks/${encodeURIComponent(tankId)}/dispatch`, {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -272,7 +272,7 @@ export async function dispatchAdminDesludging(token, tankId, scheduledFor) {
       ...authHeader(token),
     },
     body: JSON.stringify({ scheduled_for: scheduledFor }),
-  });
+  }, token);
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     const validationMessage = data?.errors ? Object.values(data.errors)[0]?.[0] : null;
@@ -282,9 +282,9 @@ export async function dispatchAdminDesludging(token, tankId, scheduledFor) {
 }
 
 async function fetchAdminCollection(path, token, fallbackMessage) {
-  const response = await fetch(`${API_BASE_URL}/api/admin/${path}`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}/api/admin/${path}`, {
     headers: { Accept: "application/json", ...authHeader(token) },
-  });
+  }, token);
   const data = await response.json().catch(() => null);
   if (!response.ok) throw new Error(data?.message ?? fallbackMessage);
   return Array.isArray(data?.data) ? data.data : [];
@@ -295,11 +295,11 @@ export function fetchAdminDevices(token) {
 }
 
 export async function createAdminDevice(token, device) {
-  const response = await fetch(`${API_BASE_URL}/api/admin/devices`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}/api/admin/devices`, {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json", ...authHeader(token) },
     body: JSON.stringify(device),
-  });
+  }, token);
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     const validationMessage = data?.errors ? Object.values(data.errors)[0]?.[0] : null;
@@ -317,42 +317,42 @@ export function fetchAdminNotifications(token) {
 }
 
 export async function markAdminNotificationRead(token, notificationId) {
-  const response = await fetch(`${API_BASE_URL}/api/admin/notifications/${encodeURIComponent(notificationId)}/read`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}/api/admin/notifications/${encodeURIComponent(notificationId)}/read`, {
     method: "POST",
     headers: { Accept: "application/json", ...authHeader(token) },
-  });
+  }, token);
   const data = await response.json().catch(() => null);
   if (!response.ok) throw new Error(data?.message ?? "Could not mark notification as read.");
   return data;
 }
 
 export async function fetchAdminReports(token, days = "180") {
-  const response = await fetch(`${API_BASE_URL}/api/admin/reports?days=${encodeURIComponent(days)}`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}/api/admin/reports?days=${encodeURIComponent(days)}`, {
     headers: { Accept: "application/json", ...authHeader(token) },
-  });
+  }, token);
   const data = await response.json().catch(() => null);
   if (!response.ok) throw new Error(data?.message ?? "Could not load admin reports.");
   return data?.data ?? null;
 }
 
 export async function updateAdminComplaint(token, complaintId, values) {
-  const response = await fetch(`${API_BASE_URL}/api/admin/complaints/${complaintId}/status`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}/api/admin/complaints/${complaintId}/status`, {
     method: "PATCH",
     headers: { Accept: "application/json", "Content-Type": "application/json", ...authHeader(token) },
     body: JSON.stringify(values),
-  });
+  }, token);
   const data = await response.json().catch(() => null);
   if (!response.ok) throw new Error(data?.message ?? "Could not update complaint status.");
   return data?.data ?? null;
 }
 
 export async function fetchResidentTankLatest(token) {
-  const response = await fetch(`${API_BASE_URL}/api/resident/tank/latest`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}/api/resident/tank/latest`, {
     headers: {
       Accept: "application/json",
       ...authHeader(token),
     },
-  });
+  }, token);
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     throw new Error(data?.message ?? "Could not load your tank reading.");
@@ -362,7 +362,7 @@ export async function fetchResidentTankLatest(token) {
 }
 
 export async function pairResidentDevice(token, deviceId, tankHeightCm) {
-  const response = await fetch(`${API_BASE_URL}/api/resident/tank/pair`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}/api/resident/tank/pair`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -370,7 +370,7 @@ export async function pairResidentDevice(token, deviceId, tankHeightCm) {
       ...authHeader(token),
     },
     body: JSON.stringify({ device_id: deviceId, tank_height_cm: tankHeightCm }),
-  });
+  }, token);
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     const validationMessage = data?.errors ? Object.values(data.errors)[0]?.[0] : null;
@@ -381,7 +381,7 @@ export async function pairResidentDevice(token, deviceId, tankHeightCm) {
 }
 
 export async function changeResidentPassword(token, currentPassword, password, passwordConfirmation) {
-  const response = await fetch(`${API_BASE_URL}/api/resident/password`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}/api/resident/password`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -393,7 +393,7 @@ export async function changeResidentPassword(token, currentPassword, password, p
       password,
       password_confirmation: passwordConfirmation,
     }),
-  });
+  }, token);
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     const validationMessage = data?.errors ? Object.values(data.errors)[0]?.[0] : null;
@@ -411,9 +411,9 @@ export function uploadResidentProfilePhoto(token, photo) {
 }
 
 export async function fetchResidentProfilePhoto(token) {
-  const response = await fetch(`${API_BASE_URL}/api/resident/profile/photo`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}/api/resident/profile/photo`, {
     headers: { Accept: "image/*", ...authHeader(token) },
-  });
+  }, token);
   if (!response.ok) {
     throw new Error(response.status === 404
       ? "No profile photo has been uploaded."
@@ -425,7 +425,7 @@ export async function fetchResidentProfilePhoto(token) {
 
 async function residentRequest(path, token, options = {}) {
   const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
-  const response = await fetch(`${API_BASE_URL}/api/resident/${path}`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}/api/resident/${path}`, {
     ...options,
     headers: {
       Accept: "application/json",
@@ -433,7 +433,7 @@ async function residentRequest(path, token, options = {}) {
       ...(options.body && !isFormData ? { "Content-Type": "application/json" } : {}),
       ...options.headers,
     },
-  });
+  }, token);
   const data = await response.json().catch(() => null);
   if (!response.ok) throw new Error(data?.message ?? "Could not load resident data.");
   return data;
@@ -516,16 +516,22 @@ export function markResidentNotificationRead(token, notificationId) {
   return residentRequest(`notifications/${notificationId}/read`, token, { method: "POST" });
 }
 
-export function updateAdminResidentApproval(token, residentId, status) {
+export function updateAdminResidentApproval(token, residentId, status, rejectionReason = null) {
   return adminResidentRequest(`/${residentId}/approval`, token, {
     method: "PATCH",
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, rejection_reason: rejectionReason }),
   });
 }
 
 export function deactivateAdminResident(token, residentId) {
   return adminResidentRequest(`/${residentId}/deactivate`, token, {
     method: "PATCH",
+  });
+}
+
+export function anonymizeDeactivatedAdminResident(token, residentId) {
+  return adminResidentRequest(`/${residentId}/account`, token, {
+    method: "DELETE",
   });
 }
 
@@ -599,4 +605,16 @@ export function readStoredSession(role) {
 
 export function authHeader(token) {
   return { Authorization: `Bearer ${token}` };
+}
+
+async function authenticatedFetch(input, options, token) {
+  const response = await fetch(input, options);
+  if (response.status === 401 && typeof window !== "undefined") {
+    const url = new URL(input, API_BASE_URL);
+    const role = url.pathname.includes("/api/admin/") ? "admin" : "resident";
+    window.dispatchEvent(new CustomEvent("septiguard:session-invalid", {
+      detail: { role, token },
+    }));
+  }
+  return response;
 }

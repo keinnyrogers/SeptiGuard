@@ -11,6 +11,7 @@ import ResidentEmptyPage from "../components/ResidentEmptyPage.jsx";
 import RequestMaintenancePanel from "../components/RequestMaintenancePanel.jsx";
 import { fetchResidentComplaints, fetchResidentTankLatest } from "../api.js";
 import ResidentAvatar from "../components/ResidentAvatar.jsx";
+import NotificationPopover from "../components/NotificationPopover.jsx";
 
 const NAV = [
   { icon: Home,        label: "Dashboard", path: "/dashboard" },
@@ -241,6 +242,7 @@ export default function Maintain() {
               <Wrench className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span className="whitespace-nowrap">Request Maintenance</span>
             </button>
+            <NotificationPopover token={token} demoMode={demoMode} onViewAll={() => navigate("/alerts")} />
           </div>
         </header>
 

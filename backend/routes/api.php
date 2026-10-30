@@ -7,15 +7,15 @@ use App\Http\Controllers\AdminResidentController;
 use App\Http\Controllers\AdminResidentInformationChangeController;
 use App\Http\Controllers\AdminTankController;
 use App\Http\Controllers\ApiAuthController;
+use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\ResidentAccountController;
 use App\Http\Controllers\ResidentComplaintController;
 use App\Http\Controllers\ResidentDeviceController;
-use App\Http\Controllers\ResidentNotificationController;
 use App\Http\Controllers\ResidentInformationChangeController;
+use App\Http\Controllers\ResidentNotificationController;
 use App\Http\Controllers\ResidentPredictionController;
 use App\Http\Controllers\ResidentPushTokenController;
 use App\Http\Controllers\ResidentTankController;
-use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\SensorReadingController;
 use Illuminate\Support\Facades\Route;
 
@@ -72,4 +72,5 @@ Route::middleware(['api.token', 'hoa'])->prefix('admin')->name('api.admin.')->gr
     Route::patch('/complaints/{complaint}/status', [AdminComplaintController::class, 'updateStatus'])->name('complaints.status');
     Route::patch('/residents/{user}/approval', [AdminResidentController::class, 'updateApproval'])->name('residents.approval');
     Route::patch('/residents/{user}/deactivate', [AdminResidentController::class, 'deactivate'])->name('residents.deactivate');
+    Route::delete('/residents/{user}/account', [AdminResidentController::class, 'anonymizeDeactivated'])->name('residents.account.delete');
 });

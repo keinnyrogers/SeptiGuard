@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable(['user_id', 'device_id', 'tank_type', 'capacity_liters', 'tank_height_cm', 'installation_date', 'last_maintenance_date', 'location', 'firmware_version'])]
 class SepticSystem extends Model
@@ -40,7 +41,7 @@ class SepticSystem extends Model
     }
 
     /**
-     * @return \Illuminate\Database\Eloquent\Relations\HasOne<TankDesludging, SepticSystem>
+     * @return HasOne<TankDesludging, SepticSystem>
      */
     public function latestDesludging()
     {
@@ -48,7 +49,7 @@ class SepticSystem extends Model
     }
 
     /**
-     * @return \Illuminate\Database\Eloquent\Relations\HasOne<TankReading, SepticSystem>
+     * @return HasOne<TankReading, SepticSystem>
      */
     public function latestTankReading()
     {

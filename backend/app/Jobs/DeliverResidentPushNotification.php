@@ -31,7 +31,14 @@ class DeliverResidentPushNotification implements ShouldQueue
     {
         $notification = SeptiNotification::query()
             ->with('user')
-            ->findOrFail($this->notificationId);
+            ->find($this->notificationId);
+        if ($notification === null) {
+            Log::info('Queued resident push cancelled because its notification record was removed.', [
+                'notification_id' => $this->notificationId,
+            ]);
+
+            return;
+        }
         $resident = $notification->user;
 
         if ($notification->is_sent) {
@@ -65,7 +72,7 @@ class DeliverResidentPushNotification implements ShouldQueue
             return;
         }
 
-        $messaging = (new Factory())->withServiceAccount($credentials)->createMessaging();
+        $messaging = (new Factory)->withServiceAccount($credentials)->createMessaging();
         $message = CloudMessage::new()
             ->withData([
                 'notification_id' => (string) $notification->id,

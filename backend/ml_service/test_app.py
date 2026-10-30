@@ -113,6 +113,52 @@ class ForecastTests(unittest.TestCase):
 
         self.assertEqual(make_forecast(request)["status"], "insufficient_data")
 
+    def test_insufficient_new_cycle_uses_provisional_previous_cycle_rate(self) -> None:
+        now = datetime(2026, 10, 19, 12, tzinfo=timezone.utc)
+        request = ForecastRequest(
+            as_of=now,
+            history=[
+                ReadingPoint(measured_at=now, fill_percentage=10, readings_count=4),
+            ],
+            prior_history=[
+                ReadingPoint(measured_at=now - timedelta(days=4), fill_percentage=30, readings_count=4),
+                ReadingPoint(measured_at=now - timedelta(days=3), fill_percentage=35, readings_count=3),
+                ReadingPoint(measured_at=now - timedelta(days=2), fill_percentage=40, readings_count=2),
+            ],
+        )
+
+        result = make_forecast(request)
+
+        self.assertEqual(result["status"], "provisional")
+        self.assertEqual(result["current_fill"], 10)
+        self.assertEqual(result["fill_rate_per_day"], 5.0)
+        self.assertEqual(result["days_to_critical"], 14)
+        self.assertIsNone(result["trend_fit_percent"])
+        self.assertEqual(result["readings_used"], 4)
+        self.assertIn("previous-cycle", result["method"])
+
+    def test_new_cycle_regression_replaces_provisional_previous_cycle_rate(self) -> None:
+        now = datetime(2026, 10, 19, 12, tzinfo=timezone.utc)
+        request = ForecastRequest(
+            as_of=now,
+            history=[
+                ReadingPoint(measured_at=now - timedelta(days=2), fill_percentage=10, readings_count=1),
+                ReadingPoint(measured_at=now - timedelta(days=1), fill_percentage=12, readings_count=1),
+                ReadingPoint(measured_at=now, fill_percentage=14, readings_count=1),
+            ],
+            prior_history=[
+                ReadingPoint(measured_at=now - timedelta(days=4), fill_percentage=30, readings_count=1),
+                ReadingPoint(measured_at=now - timedelta(days=3), fill_percentage=35, readings_count=1),
+                ReadingPoint(measured_at=now - timedelta(days=2), fill_percentage=40, readings_count=1),
+            ],
+        )
+
+        result = make_forecast(request)
+
+        self.assertEqual(result["status"], "ready")
+        self.assertEqual(result["fill_rate_per_day"], 2.0)
+        self.assertIn("scikit-learn LinearRegression", result["method"])
+
     def test_empty_history_returns_no_readings_state(self) -> None:
         now = datetime(2026, 10, 19, 12, tzinfo=timezone.utc)
         result = make_forecast(ForecastRequest(as_of=now, history=[]))

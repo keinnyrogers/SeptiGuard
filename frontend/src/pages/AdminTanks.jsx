@@ -1,13 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronDown, Clock, LayoutGrid, List, MapPin, Menu, Search } from "lucide-react";
 import { AdminSidebar } from "@/components/AdminSidebar";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import AdminNotificationPopover from "@/components/AdminNotificationPopover";
 import TankPanel from "@/components/TankPanel";
 import DispatchModal from "@/components/DispatchModal";
 import { COMMUNITY_ADDRESS, formatResidentAddress } from "@/lib/addresses";
 import { useAuth } from "../context/AuthContext.jsx";
-import { dispatchAdminDesludging, fetchAdminTanks, recordAdminDesludging } from "../api.js";
+import {
+  dispatchAdminDesludging,
+  fetchAdminTanks,
+  recordAdminDesludging,
+} from "../api.js";
 
 // ---------- Status threshold rules (single source of truth) ----------
 // fillLevel >= 80%        -> "critical" (red)
@@ -43,27 +48,27 @@ export default function AdminTanks() {
   const [loadError, setLoadError] = useState("");
   const [refreshError, setRefreshError] = useState("");
 
-  useEffect(() => {
-    let current = true;
-    fetchAdminTanks(token)
-      .then((data) => {
-        if (current) {
-          setTanks((data.tanks ?? []).map((tank) => ({
-            ...tank,
-            status: tank.status ?? (tank.level === null ? "normal" : statusOf(tank.level)),
-          })));
-        }
-      })
-      .catch((error) => {
-        if (current) setLoadError(error.message);
-      })
-      .finally(() => {
-        if (current) setLoading(false);
-      });
-    return () => {
-      current = false;
-    };
-  }, [token]);
+  useAutoRefresh(async () => {
+    if (!token) return;
+    try {
+      const data = await fetchAdminTanks(token);
+      const refreshedTanks = (data.tanks ?? []).map((tank) => ({
+        ...tank,
+        status: tank.status ?? (tank.level === null ? "normal" : statusOf(tank.level)),
+      }));
+      setTanks(refreshedTanks);
+      setSelectedTank((current) => current
+        ? refreshedTanks.find((tank) => tank.system_id === current.system_id) ?? current
+        : null);
+      setLoadError("");
+      setRefreshError("");
+    } catch (error) {
+      if (loading) setLoadError(error.message);
+      else setRefreshError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }, token);
 
   const counts = useMemo(() => {
     const c = { total: tanks.length, normal: 0, warning: 0, critical: 0 };
@@ -112,6 +117,7 @@ export default function AdminTanks() {
     } catch (error) {
       setRefreshError(`Desludging was recorded, but updated tank data could not be loaded: ${error.message}`);
     }
+    return event?.message ?? "Desludging recorded.";
   }
 
   return (

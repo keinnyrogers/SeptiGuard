@@ -36,7 +36,7 @@ const FEATURES = [
 
 export default function Login({ adminOnly = false }) {
   const navigate = useNavigate();
-  const { login, loginAdmin, isAuthenticated, isReady, user: currentUser } = useAuth();
+  const { login, loginAdmin, isAuthenticated, isReady, user: currentUser, sessionNotice } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -220,6 +220,11 @@ export default function Login({ adminOnly = false }) {
           {resetRequestSent && (
             <div role="status" className="mt-6 rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
               If an account exists for that email, a password reset link will be sent shortly.
+            </div>
+          )}
+          {sessionNotice?.role === (adminOnly ? "admin" : "resident") && (
+            <div role="alert" className="mt-6 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
+              {sessionNotice.message}
             </div>
           )}
           {error && (

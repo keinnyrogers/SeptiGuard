@@ -3,11 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\ResidentInformationChangeRequest;
+use App\Services\ResidentUpdateEmailService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class AdminResidentInformationChangeController extends Controller
 {
@@ -22,17 +23,22 @@ class AdminResidentInformationChangeController extends Controller
         return response()->json(['data' => $requests]);
     }
 
-    public function review(Request $request, ResidentInformationChangeRequest $informationChangeRequest): JsonResponse
-    {
+    public function review(
+        Request $request,
+        ResidentInformationChangeRequest $informationChangeRequest,
+        ResidentUpdateEmailService $emailService,
+    ): JsonResponse {
         $validated = $request->validate([
             'status' => ['required', Rule::in(['approved', 'rejected'])],
         ]);
 
         abort_unless($informationChangeRequest->status === 'pending', 409, 'This request has already been reviewed.');
+        $informationChangeRequest->loadMissing('user');
+        $resident = $informationChangeRequest->user;
+        $recipientEmail = (string) $resident->email;
 
-        DB::transaction(function () use ($informationChangeRequest, $validated, $request): void {
+        DB::transaction(function () use ($informationChangeRequest, $validated, $request, $resident): void {
             if ($validated['status'] === 'approved') {
-                $resident = $informationChangeRequest->user;
                 $value = $informationChangeRequest->requested_value;
 
                 $valueRules = match ($informationChangeRequest->field) {
@@ -69,10 +75,21 @@ class AdminResidentInformationChangeController extends Controller
             ]);
         });
 
+        $emailQueued = $emailService->queueInformationChangeDecision(
+            $resident,
+            $recipientEmail,
+            $informationChangeRequest,
+            $validated['status'],
+        );
         $informationChangeRequest->refresh()->load(['user.residentProfile', 'reviewer']);
 
         return response()->json([
-            'message' => $validated['status'] === 'approved' ? 'Request approved.' : 'Request rejected.',
+            'message' => match (true) {
+                $emailQueued && $validated['status'] === 'approved' => 'Request approved. Resident email queued.',
+                $emailQueued => 'Request rejected. Resident email queued.',
+                $validated['status'] === 'approved' => 'Request approved. No resident email was queued because SMTP is not configured or the resident account is not eligible.',
+                default => 'Request rejected. No resident email was queued because SMTP is not configured or the resident account is not eligible.',
+            },
             'data' => $this->requestData($informationChangeRequest),
         ]);
     }

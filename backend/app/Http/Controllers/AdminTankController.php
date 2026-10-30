@@ -5,13 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\Complaint;
 use App\Models\SepticSystem;
 use App\Services\ResidentNotificationService;
+use App\Services\ResidentUpdateEmailService;
 use App\Services\TankFillForecastService;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
 class AdminTankController extends Controller
@@ -90,8 +92,11 @@ class AdminTankController extends Controller
         return response()->json(['data' => $devices]);
     }
 
-    public function recordDesludging(Request $request, SepticSystem $septicSystem): JsonResponse
-    {
+    public function recordDesludging(
+        Request $request,
+        SepticSystem $septicSystem,
+        ResidentUpdateEmailService $emailService,
+    ): JsonResponse {
         $validated = $request->validate([
             'performed_on' => ['required', 'date', 'before_or_equal:today'],
         ]);
@@ -110,9 +115,12 @@ class AdminTankController extends Controller
             'performed_on' => $validated['performed_on'],
             'recorded_by' => $request->user()->id,
         ]);
+        $emailQueued = $emailService->queueCompletedDesludging($septicSystem, $validated['performed_on']);
 
         return response()->json([
-            'message' => 'Completed desludging recorded. Forecasting will use readings from after this date.',
+            'message' => $emailQueued
+                ? 'Completed desludging recorded. Forecasting will use readings from after this date. Resident email queued.'
+                : 'Completed desludging recorded. Forecasting will use readings from after this date. No resident email was queued because SMTP is not configured or no eligible resident is linked.',
             'data' => [
                 'id' => $desludging->id,
                 'performed_on' => $desludging->performed_on->toDateString(),
@@ -140,7 +148,7 @@ class AdminTankController extends Controller
             'ticket_code' => Complaint::generateTicketCode(),
             'category' => 'septic_tank',
             'title' => 'Maintenance request: Desludging service for '.$septicSystem->device_id,
-            'description' => 'The HOA scheduled a desludging service for '.\Illuminate\Support\Carbon::parse($validated['scheduled_for'])->toFormattedDateString().'. The HOA will update this request as work progresses.',
+            'description' => 'The HOA scheduled a desludging service for '.Carbon::parse($validated['scheduled_for'])->toFormattedDateString().'. The HOA will update this request as work progresses.',
             'location' => $septicSystem->user->residentProfile?->address ?? $septicSystem->location,
             'status' => 'pending',
             'scheduled_for' => $validated['scheduled_for'],

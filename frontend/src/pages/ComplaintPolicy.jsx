@@ -1,4 +1,7 @@
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext.jsx";
 import LegalPage from "../components/LegalPage.jsx";
+import NotificationPopover from "../components/NotificationPopover.jsx";
 
 const sections = [
   {
@@ -44,12 +47,18 @@ const sections = [
 ];
 
 export default function ComplaintPolicy() {
+  const { user, token } = useAuth();
+  const navigate = useNavigate();
+
   return (
     <LegalPage
       title="Complaint Filing Policy"
       updated="October 22, 2026"
       backTo="/complaints/new"
       backLabel="Back to complaint form"
+      headerAction={user ? (
+        <NotificationPopover token={token} demoMode={user.demo_mode} onViewAll={() => navigate("/alerts")} />
+      ) : null}
       intro={<p className="mt-6 max-w-3xl text-sm leading-relaxed text-muted-foreground">This guide explains how to submit and follow a complaint through the SeptiGuard resident portal. It describes the portal’s current filing guidance and does not replace official HOA rules or emergency services.</p>}
       sections={sections}
     />

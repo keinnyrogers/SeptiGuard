@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Cpu, Wifi, WifiOff, BatteryLow, Plus, Eye, Menu, X, Check } from "lucide-react";
 import { AdminSidebar } from "@/components/AdminSidebar";
+import AdminNotificationPopover from "@/components/AdminNotificationPopover";
 import DevicePanel from "@/components/DevicePanel";
 import { LOW_BATTERY_THRESHOLD } from "@/data/devices";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useAuth } from "../context/AuthContext.jsx";
 import { createAdminDevice, fetchAdminDevices } from "../api.js";
 
@@ -50,14 +52,21 @@ export default function AdminDevices() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState("");
 
-  useEffect(() => {
-    let current = true;
-    fetchAdminDevices(token)
-      .then((items) => { if (current) setDevices(items); })
-      .catch((error) => { if (current) setLoadError(error.message); })
-      .finally(() => { if (current) setLoading(false); });
-    return () => { current = false; };
-  }, [token]);
+  useAutoRefresh(async () => {
+    if (!token) return;
+    try {
+      const refreshedDevices = await fetchAdminDevices(token);
+      setDevices(refreshedDevices);
+      setSelectedDevice((current) => current
+        ? refreshedDevices.find((device) => device.device_id === current.device_id) ?? current
+        : null);
+      setLoadError("");
+    } catch (error) {
+      setLoadError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }, token);
 
   const blocks = useMemo(
     () => [...new Set(devices.map((d) => d.block_lot?.split(" ")[0]).filter(Boolean))].sort(),
@@ -145,9 +154,12 @@ export default function AdminDevices() {
               <h1 className="mt-1 font-display text-lg font-bold sm:text-xl">Sensor / IoT Devices</h1>
             </div>
           </div>
-          <button onClick={() => setFormOpen(true)} className="flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:opacity-90 sm:h-10 sm:gap-2 sm:px-4 sm:text-sm">
-            <Plus className="h-4 w-4" /> <span className="whitespace-nowrap">Add Device</span>
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button onClick={() => setFormOpen(true)} className="flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:opacity-90 sm:h-10 sm:gap-2 sm:px-4 sm:text-sm">
+              <Plus className="h-4 w-4" /> <span className="whitespace-nowrap">Add Device</span>
+            </button>
+            <AdminNotificationPopover token={token} navigate={navigate} onViewAll={() => navigate("/admin/residents")} />
+          </div>
         </header>
         <div className="px-5 py-6 md:px-8">
 

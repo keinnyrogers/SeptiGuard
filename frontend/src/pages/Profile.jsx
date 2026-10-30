@@ -22,6 +22,7 @@ import {
 import { isFirebaseMessagingConfigured } from "../lib/firebaseConfig.js";
 import { promptAppInstall, subscribeToInstallPrompt } from "../lib/pwaInstall.js";
 import { formatResidentAddress } from "@/lib/addresses";
+import NotificationPopover from "../components/NotificationPopover.jsx";
 
 // Sample placeholder values only — replace with your Laravel API data later.
 const SAMPLE = {
@@ -286,15 +287,18 @@ export default function Profile() {
               <p className="mt-1 text-xs text-muted-foreground">Manage your account details and preferences</p>
             </div>
           </div>
-          {demoMode && (
-            <button
-              onClick={() => setDemoAddressSaved(true)}
-              className="flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground sm:h-10 sm:gap-2 sm:px-4 sm:text-sm"
-            >
-              <Save className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              <span className="whitespace-nowrap">{demoAddressSaved ? "Demo changes saved" : "Save demo changes"}</span>
-            </button>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            {demoMode && (
+              <button
+                onClick={() => setDemoAddressSaved(true)}
+                className="flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground sm:h-10 sm:gap-2 sm:px-4 sm:text-sm"
+              >
+                <Save className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="whitespace-nowrap">{demoAddressSaved ? "Demo changes saved" : "Save demo changes"}</span>
+              </button>
+            )}
+            <NotificationPopover token={token} demoMode={demoMode} onViewAll={() => navigate("/alerts")} />
+          </div>
         </header>
 
         <main className="mx-auto max-w-[1440px] space-y-5 p-4 sm:p-7">

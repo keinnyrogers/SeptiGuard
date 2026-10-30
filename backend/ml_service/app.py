@@ -31,6 +31,7 @@ class ReadingPoint(BaseModel):
 class ForecastRequest(BaseModel):
     as_of: datetime
     history: list[ReadingPoint]
+    prior_history: list[ReadingPoint] = Field(default_factory=list)
 
 
 def require_api_key(authorization: str | None = Header(default=None)) -> None:
@@ -51,15 +52,17 @@ def as_iso(value: datetime) -> str:
     return as_utc(value).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
-def make_forecast(request: ForecastRequest) -> dict:
-    as_of = as_utc(request.as_of)
+def daily_points(readings: list[ReadingPoint], start_at: datetime | None = None, end_at: datetime | None = None) -> list[dict]:
     daily: dict[date, list[ReadingPoint]] = {}
 
-    for reading in request.history:
+    for reading in readings:
         measured_at = as_utc(reading.measured_at)
-        if measured_at >= as_of - timedelta(days=30):
-            reading_date = reading.reading_date or measured_at.date()
-            daily.setdefault(reading_date, []).append(reading)
+        if start_at is not None and measured_at < start_at:
+            continue
+        if end_at is not None and measured_at >= end_at:
+            continue
+        reading_date = reading.reading_date or measured_at.date()
+        daily.setdefault(reading_date, []).append(reading)
 
     points = []
     for reading_date in sorted(daily):
@@ -72,6 +75,27 @@ def make_forecast(request: ForecastRequest) -> dict:
             "fill_percentage": round(average_fill, 2),
             "readings_count": sum(entry.readings_count for entry in entries),
         })
+
+    return points
+
+
+def positive_fill_rate(points: list[dict]) -> float | None:
+    if len(points) < MIN_DAILY_POINTS or (points[-1]["date"] - points[0]["date"]).days < 2:
+        return None
+
+    x_values = [[(point["date"] - points[0]["date"]).days] for point in points]
+    y_values = [point["fill_percentage"] for point in points]
+    model = LinearRegression()
+    model.fit(x_values, y_values)
+    daily_rate = float(model.coef_[0])
+
+    return daily_rate if daily_rate > 0 else None
+
+
+def make_forecast(request: ForecastRequest) -> dict:
+    as_of = as_utc(request.as_of)
+    points = daily_points(request.history, start_at=as_of - timedelta(days=30))
+    prior_points = daily_points(request.prior_history)
 
     latest = points[-1] if points else None
     first_date = points[0]["date"] if points else None
@@ -88,6 +112,7 @@ def make_forecast(request: ForecastRequest) -> dict:
         "threshold_percentage": CRITICAL_FILL_PERCENTAGE,
         "current_fill": latest["fill_percentage"] if latest else None,
         "readings_used": sum(point["readings_count"] for point in points),
+        "prior_readings_used": sum(point["readings_count"] for point in prior_points),
         "daily_points": len(points),
         "days_observed": days_observed,
         "history": history,
@@ -120,6 +145,31 @@ def make_forecast(request: ForecastRequest) -> dict:
         }
 
     if len(points) < MIN_DAILY_POINTS or days_observed < 2:
+        prior_rate = positive_fill_rate(prior_points)
+        if prior_rate is not None:
+            days_to_critical = math.ceil(
+                (CRITICAL_FILL_PERCENTAGE - current_fill) / prior_rate - 1e-9
+            )
+            if days_to_critical > MAX_FORECAST_DAYS:
+                return {
+                    **base,
+                    "status": "beyond_forecast_horizon",
+                    "method": "previous-cycle fill rate rebased to post-desludging readings",
+                    "fill_rate_per_day": round(prior_rate, 3),
+                    "message": "A provisional estimate based on the previous cycle is more than one year away, so no date is shown.",
+                }
+            if days_to_critical > 0:
+                predicted_at = latest["measured_at"] + timedelta(days=days_to_critical)
+                return {
+                    **base,
+                    "status": "provisional",
+                    "method": "previous-cycle fill rate rebased to post-desludging readings",
+                    "fill_rate_per_day": round(prior_rate, 3),
+                    "days_to_critical": days_to_critical,
+                    "predicted_critical_at": as_iso(predicted_at),
+                    "message": "Provisional estimate based on the previous cycle's fill rate and the latest post-desludging reading. It will update after enough new readings are collected.",
+                }
+
         return {
             **base,
             "status": "insufficient_data",

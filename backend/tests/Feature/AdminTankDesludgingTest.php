@@ -2,10 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\SendResidentUpdateEmail;
 use App\Models\SepticSystem;
 use App\Models\TankDesludging;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class AdminTankDesludgingTest extends TestCase
@@ -14,13 +17,29 @@ class AdminTankDesludgingTest extends TestCase
 
     public function test_admin_can_record_completed_desludging_without_changing_readings(): void
     {
+        Queue::fake();
+        config([
+            'mail.default' => 'smtp',
+            'mail.mailers.smtp.host' => 'smtp.example.com',
+            'mail.mailers.smtp.username' => 'hoa@example.com',
+            'mail.mailers.smtp.password' => 'test-password',
+            'mail.from.address' => 'hoa@example.com',
+        ]);
+        $resident = User::factory()->create([
+            'role' => 'resident',
+            'account_status' => 'approved',
+            'demo_mode' => false,
+        ]);
         $admin = User::factory()->create([
             'role' => 'hoa_admin',
             'account_status' => 'approved',
         ]);
         $token = 'desludging-admin-token';
         $admin->forceFill(['api_token_hash' => hash('sha256', $token)])->save();
-        $system = SepticSystem::factory()->create(['device_id' => 'TNK-DESLUDGING']);
+        $system = SepticSystem::factory()->create([
+            'device_id' => 'TNK-DESLUDGING',
+            'user_id' => $resident->id,
+        ]);
         $reading = $system->tankReadings()->create([
             'fill_level_percentage' => 62.5,
             'measured_at' => now()->subDay(),
@@ -33,6 +52,7 @@ class AdminTankDesludgingTest extends TestCase
                 'performed_on' => now()->subDay()->toDateString(),
             ])
             ->assertCreated()
+            ->assertJsonPath('message', 'Completed desludging recorded. Forecasting will use readings from after this date. Resident email queued.')
             ->assertJsonPath('data.performed_on', now()->subDay()->toDateString());
 
         $this->assertDatabaseHas('tank_desludgings', [
@@ -44,6 +64,12 @@ class AdminTankDesludgingTest extends TestCase
             'id' => $reading->id,
             'fill_level_percentage' => 62.5,
         ]);
+        Queue::assertPushed(
+            SendResidentUpdateEmail::class,
+            fn (SendResidentUpdateEmail $job): bool => $job->residentEmail === $resident->email
+                && str_contains($job->subject, 'desludging')
+                && str_contains($job->message, 'TNK-DESLUDGING'),
+        );
     }
 
     public function test_admin_cannot_record_a_future_or_earlier_than_latest_desludging_date(): void
@@ -117,7 +143,7 @@ class AdminTankDesludgingTest extends TestCase
         ]);
         $this->assertDatabaseHas('septi_notifications', [
             'user_id' => $resident->id,
-            'title' => 'Desludging scheduled for '.\Illuminate\Support\Carbon::parse($scheduledFor)->toFormattedDateString(),
+            'title' => 'Desludging scheduled for '.Carbon::parse($scheduledFor)->toFormattedDateString(),
             'type' => 'ticket_update',
             'channel' => 'in_app',
         ]);
