@@ -60,6 +60,12 @@ services:
         condition: service_healthy
     volumes:
       - private_uploads:/var/www/html/storage/app/private
+      - type: bind
+        source: ./deploy/vm/firebase-service-account.json
+        target: /run/secrets/firebase-service-account.json
+        read_only: true
+        bind:
+          create_host_path: false
     expose:
       - "8080"
     healthcheck:
@@ -83,6 +89,13 @@ services:
       REVERB_HOST: reverb
       REVERB_PORT: 8081
       REVERB_SCHEME: http
+    volumes:
+      - type: bind
+        source: ./deploy/vm/firebase-service-account.json
+        target: /run/secrets/firebase-service-account.json
+        read_only: true
+        bind:
+          create_host_path: false
     depends_on:
       backend:
         condition: service_healthy

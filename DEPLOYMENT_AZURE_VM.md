@@ -28,7 +28,42 @@ openssl rand -base64 32 | tr -d '\n'
 printf '\n'
 ```
 
-Set that value as `APP_KEY`. Generate separate random values for `DB_PASSWORD`, `MYSQL_ROOT_PASSWORD`, `REVERB_APP_KEY`, `REVERB_APP_SECRET`, `PREDICTION_SERVICE_API_KEY`, and `SENSOR_API_KEY` with `openssl rand -hex 32`. Do not reuse local application keys or passwords or share these values in chat. Keep the Firebase fields blank to leave push notifications disabled; configure them only when the Firebase web app and service-account credentials are ready. The `VITE_FIREBASE_*` values are public Firebase web-app configuration, but should still be set to the intended production project.
+Set that value as `APP_KEY`. Generate separate random values for `DB_PASSWORD`, `MYSQL_ROOT_PASSWORD`, `REVERB_APP_KEY`, `REVERB_APP_SECRET`, `PREDICTION_SERVICE_API_KEY`, and `SENSOR_API_KEY` with `openssl rand -hex 32`. Do not reuse local application keys or passwords or share these values in chat.
+
+### Firebase push notifications
+
+Use the Firebase project intended for production (the current project, if one is already configured):
+
+1. Use the intended Firebase project (the same project used by the SeptiGuard web app), enable Firebase Cloud Messaging, and obtain the web app configuration plus a Web Push VAPID key. SeptiGuard uses its own API authentication; Firebase Authentication is not required for this notification setup.
+2. Set `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID`, and `VITE_FIREBASE_VAPID_KEY` in `deploy/vm/.env`. These are browser-side Firebase configuration values, not the Admin private key.
+3. Generate/download a Firebase Admin service-account JSON from the Firebase project’s Service accounts settings. Transfer it securely to `deploy/vm/firebase-service-account.json` on the VM. Never commit it, put its contents in chat, or include it in a screenshot.
+4. On the VM, restrict the file and make it readable by the PHP worker user in the container:
+
+   ```bash
+   sudo chown 33:33 deploy/vm/firebase-service-account.json
+   sudo chmod 400 deploy/vm/firebase-service-account.json
+   ```
+
+5. Set `FIREBASE_PROJECT_ID` to the same Firebase project ID. The Compose file mounts the private JSON read-only into both Laravel and the queue worker.
+
+Push delivery requires the resident to enable notifications in the portal on a supported browser/device. Test with a real, approved, non-demo resident account; demo accounts are intentionally excluded from resident notifications.
+
+### Outgoing email
+
+In Titan, open **Enable Titan on other apps** and use its current SMTP instructions. Set the SMTP host, port, encryption/scheme, mailbox username, and mailbox password in `deploy/vm/.env`:
+
+```text
+MAIL_MAILER=smtp
+MAIL_SCHEME=<Titan's documented SMTP encryption>
+MAIL_HOST=<Titan's documented SMTP host>
+MAIL_PORT=<Titan's documented SMTP port>
+MAIL_USERNAME=admin@septiguard.tech
+MAIL_PASSWORD=<Titan mailbox password>
+MAIL_FROM_ADDRESS=admin@septiguard.tech
+MAIL_FROM_NAME=SeptiGuard
+```
+
+Keep the mailbox password private. Do not send it in chat or commit the environment file. Confirm Titan SPF/DKIM records are verified for better deliverability.
 
 Use the MQTT host, topic, and test-device credentials that match the demo firmware. Keep the broker and data test-only unless the firmware and broker are configured for authentication and TLS.
 
