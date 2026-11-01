@@ -1,0 +1,17 @@
+septiguard.tech {
+	encode zstd gzip
+	reverse_proxy frontend:80
+}
+
+api.septiguard.tech {
+	encode zstd gzip
+
+	@app_websocket path /app/*
+	handle @app_websocket {
+		reverse_proxy reverb:8081
+	}
+
+	handle {
+		reverse_proxy backend:8080
+	}
+}

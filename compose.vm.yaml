@@ -1,0 +1,157 @@
+name: septiguard
+
+x-backend-image: &backend-image
+  image: septiguard-backend:vm
+  build:
+    context: ./backend
+    dockerfile: Dockerfile
+
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:?Set DB_DATABASE in deploy/vm/.env}
+      MYSQL_USER: ${DB_USERNAME:?Set DB_USERNAME in deploy/vm/.env}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in deploy/vm/.env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in deploy/vm/.env}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$${MYSQL_ROOT_PASSWORD}\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  prediction:
+    image: septiguard-prediction:vm
+    build:
+      context: ./backend/ml_service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      PREDICTION_SERVICE_API_KEY: ${PREDICTION_SERVICE_API_KEY:?Set PREDICTION_SERVICE_API_KEY in deploy/vm/.env}
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  backend:
+    <<: *backend-image
+    restart: unless-stopped
+    env_file:
+      - ./deploy/vm/.env
+    environment:
+      APP_KEY: ${APP_KEY:?Set APP_KEY in deploy/vm/.env}
+      DB_HOST: db
+      DB_PORT: 3306
+      PREDICTION_SERVICE_URL: http://prediction:8000
+      REVERB_HOST: reverb
+      REVERB_PORT: 8081
+      REVERB_SCHEME: http
+      SENSOR_API_KEY: ${SENSOR_API_KEY:?Set SENSOR_API_KEY in deploy/vm/.env}
+    depends_on:
+      db:
+        condition: service_healthy
+      prediction:
+        condition: service_healthy
+    volumes:
+      - private_uploads:/var/www/html/storage/app/private
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "php", "-r", "$$response = @file_get_contents('http://127.0.0.1:8080/up'); exit($$response === false ? 1 : 0);"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  worker:
+    <<: *backend-image
+    restart: unless-stopped
+    command: ["supervisord", "-c", "/etc/supervisor/worker.conf"]
+    env_file:
+      - ./deploy/vm/.env
+    environment:
+      APP_KEY: ${APP_KEY:?Set APP_KEY in deploy/vm/.env}
+      DB_HOST: db
+      DB_PORT: 3306
+      PREDICTION_SERVICE_URL: http://prediction:8000
+      REVERB_HOST: reverb
+      REVERB_PORT: 8081
+      REVERB_SCHEME: http
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  reverb:
+    <<: *backend-image
+    restart: unless-stopped
+    command: ["php", "artisan", "reverb:start", "--host=0.0.0.0", "--port=8081"]
+    env_file:
+      - ./deploy/vm/.env
+    environment:
+      APP_KEY: ${APP_KEY:?Set APP_KEY in deploy/vm/.env}
+      DB_HOST: db
+      DB_PORT: 3306
+      REVERB_HOST: reverb
+      REVERB_PORT: 8081
+      REVERB_SCHEME: http
+    depends_on:
+      backend:
+        condition: service_healthy
+    expose:
+      - "8081"
+
+  frontend:
+    image: septiguard-frontend:vm
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: https://api.septiguard.tech
+        VITE_REVERB_APP_KEY: ${REVERB_APP_KEY:?Set REVERB_APP_KEY in deploy/vm/.env}
+        VITE_REVERB_HOST: api.septiguard.tech
+        VITE_REVERB_PORT: "443"
+        VITE_REVERB_SCHEME: https
+        VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY:-}
+        VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN:-}
+        VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID:-}
+        VITE_FIREBASE_MESSAGING_SENDER_ID: ${VITE_FIREBASE_MESSAGING_SENDER_ID:-}
+        VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID:-}
+        VITE_FIREBASE_VAPID_KEY: ${VITE_FIREBASE_VAPID_KEY:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/vm/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+      reverb:
+        condition: service_started
+
+volumes:
+  mysql_data:
+  private_uploads:
+  caddy_data:
+  caddy_config:
