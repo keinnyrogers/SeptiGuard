@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Mail\ResidentNotificationMail;
 use App\Models\SeptiNotification;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -90,8 +91,12 @@ class DeliverResidentNotification implements ShouldQueue
             throw new RuntimeException('Resident has no valid email address for notification delivery.');
         }
 
-        Mail::raw($notification->message, function ($mail) use ($notification, $email): void {
-            $mail->to($email)->subject($notification->title);
-        });
+        $alertsUrl = rtrim((string) config('app.frontend_url'), '/').'/alerts';
+
+        Mail::to($email)->send(new ResidentNotificationMail(
+            title: $notification->title,
+            message: $notification->message,
+            alertsUrl: $alertsUrl,
+        ));
     }
 }

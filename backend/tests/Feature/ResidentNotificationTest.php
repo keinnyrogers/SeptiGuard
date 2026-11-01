@@ -3,10 +3,12 @@
 namespace Tests\Feature;
 
 use App\Jobs\DeliverResidentNotification;
+use App\Mail\ResidentNotificationMail;
 use App\Models\SeptiNotification;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class ResidentNotificationTest extends TestCase
@@ -69,5 +71,40 @@ class ResidentNotificationTest extends TestCase
 
         Http::assertNothingSent();
         $this->assertDatabaseMissing('septi_notifications', ['id' => $notification->id]);
+    }
+
+    public function test_resident_email_notification_is_branded_and_includes_a_plain_text_fallback(): void
+    {
+        Mail::fake();
+        config(['app.frontend_url' => 'https://septiguard.tech/']);
+
+        $resident = User::factory()->create([
+            'role' => 'resident',
+            'account_status' => 'approved',
+            'demo_mode' => false,
+        ]);
+        $notification = SeptiNotification::factory()->create([
+            'user_id' => $resident->id,
+            'channel' => 'email',
+            'title' => 'Tank warning',
+            'message' => 'Your tank is at 80% capacity.',
+            'is_sent' => false,
+            'sent_at' => null,
+        ]);
+
+        (new DeliverResidentNotification($notification->id))->handle();
+
+        Mail::assertSent(ResidentNotificationMail::class, function (ResidentNotificationMail $mail) use ($resident): bool {
+            $html = $mail->render();
+            $textView = $mail->content()->text;
+
+            return $mail->hasTo($resident->email)
+                && $mail->subject === 'Tank warning'
+                && str_contains($html, 'SeptiGuard')
+                && str_contains($html, 'View your alerts')
+                && str_contains($html, 'https://septiguard.tech/alerts')
+                && $textView === 'emails.resident-notification-text';
+        });
+        $this->assertTrue($notification->fresh()->is_sent);
     }
 }
