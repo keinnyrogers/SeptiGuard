@@ -30,7 +30,7 @@ export default function AdminDashboard({ navigate }) {
   const [loading, setLoading] = useState(true);
   const soon = (name) => window.alert(`${name} will be connected in the next step.`);
   const signOut = async () => {
-    if (await logout()) routerNavigate("/admin/login");
+    if (await logout()) routerNavigate("/admin");
   };
   const goToTanks = navigate ?? (() => routerNavigate("/admin/tanks"));
   useAutoRefresh(async () => {

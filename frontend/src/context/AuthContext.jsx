@@ -78,7 +78,7 @@ export function AuthProvider({ children }) {
           ? "Your session is no longer valid. Your account may have been deactivated by the HOA. Please contact the HOA if you need help restoring access."
           : "Your admin session is no longer valid. Please sign in again.",
       });
-      navigate(role === "admin" ? "/admin/login" : "/", { replace: true });
+      navigate(role === "admin" ? "/admin" : "/", { replace: true });
     }
 
     window.addEventListener("septiguard:session-invalid", handleInvalidSession);
