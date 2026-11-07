@@ -297,7 +297,7 @@ export default function AdminResidents() {
         user={user}
         active="Residents"
         signOut={async () => {
-          if (await logout()) navigate("/admin/login");
+          if (await logout()) navigate("/admin");
         }}
       />
       <main className="min-w-0 flex-1 lg:ml-52">

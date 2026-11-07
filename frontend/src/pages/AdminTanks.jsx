@@ -129,7 +129,7 @@ export default function AdminTanks() {
         user={user}
         active="Tanks"
         signOut={async () => {
-          if (await logout()) navigate("/admin/login");
+          if (await logout()) navigate("/admin");
         }}
       />
       {open && (

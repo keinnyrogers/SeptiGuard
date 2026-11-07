@@ -35,9 +35,8 @@ import NotificationPopover from "../components/NotificationPopover.jsx";
    Status rule (single source of truth):
      >= 80% critical, >= 70% warning, < 70% normal
 
-   NOTE: Yung "X" (dismiss) button dito ay client-side lang muna
-   (nagtatago sa list, hindi nagde-delete sa DB) dahil walang
-   `dismissed_at` column sa septi_notifications table mo.
+   The "X" button hides notifications on this browser, per resident account.
+   It does not delete the notification or affect other devices.
 ================================================================== */
 
 const TYPE_META = {
@@ -85,6 +84,21 @@ const formattedDesludgingDate = new Intl.DateTimeFormat(undefined, {
   month: "long",
   day: "numeric",
 }).format(sampleDesludgingDate);
+
+function readDismissedNotificationIds(storageKey) {
+  if (!storageKey) return new Set();
+
+  try {
+    const stored = window.localStorage.getItem(storageKey);
+    if (!stored) return new Set();
+    const ids = JSON.parse(stored);
+    if (!Array.isArray(ids)) throw new Error("Stored dismissed notifications are invalid.");
+    return new Set(ids);
+  } catch (error) {
+    console.error("Could not read dismissed notifications.", error);
+    return new Set();
+  }
+}
 
 /* ======================= SAMPLE DATA (temporary) =======================
    Palitan ng axios.get("/api/notifications") kapag ready na. Ang
@@ -163,7 +177,18 @@ export default function Alerts() {
   );
   const [actionError, setActionError] = useState("");
   const [isMarkingRead, setIsMarkingRead] = useState(false);
-  const [dismissedIds, setDismissedIds] = useState(() => new Set());
+  const dismissalStorageKey = user?.demo_mode
+    ? "septiguard_demo_dismissed_notifications"
+    : user?.id != null
+      ? `septiguard_resident_${user.id}_dismissed_notifications`
+      : null;
+  const [dismissedState, setDismissedState] = useState(() => ({
+    storageKey: dismissalStorageKey,
+    ids: readDismissedNotificationIds(dismissalStorageKey),
+  }));
+  const dismissedIds = dismissedState.storageKey === dismissalStorageKey
+    ? dismissedState.ids
+    : readDismissedNotificationIds(dismissalStorageKey);
   const [now] = useState(() => Date.now());
   const notifications = user?.demo_mode ? sampleNotifications : realNotifications;
   const visibleNotifications = useMemo(
@@ -298,7 +323,19 @@ export default function Alerts() {
   };
 
   const dismiss = (id) => {
-    setDismissedIds((previous) => new Set(previous).add(id));
+    const next = new Set(dismissedIds).add(id);
+    if (dismissalStorageKey) {
+      try {
+        window.localStorage.setItem(dismissalStorageKey, JSON.stringify([...next]));
+      } catch (error) {
+        console.error("Could not save dismissed notifications.", error);
+        setActionError("Could not save this dismissal. Check your browser storage settings and try again.");
+        return;
+      }
+    }
+
+    setActionError("");
+    setDismissedState({ storageKey: dismissalStorageKey, ids: next });
   };
 
   const openAction = async (n) => {
@@ -557,8 +594,8 @@ export default function Alerts() {
 
                       <button
                         onClick={() => dismiss(n.id)}
-                        aria-label="Hide notification"
-                        title="Hide from this list until you reload"
+                        aria-label="Dismiss notification"
+                        title="Hide from this list on this browser"
                         className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                       >
                         <X className="h-3.5 w-3.5" />
