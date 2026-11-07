@@ -139,7 +139,7 @@ class SensorReadingApiTest extends TestCase
             ->assertJsonValidationErrors(['fill_level_percentage']);
     }
 
-    public function test_decimal_reading_uses_calibrated_tank_height(): void
+    public function test_decimal_reading_uses_calibrated_tank_height_with_safety_gap(): void
     {
         $system = SepticSystem::factory()->create([
             'device_id' => 'TNK-001',
@@ -153,11 +153,29 @@ class SensorReadingApiTest extends TestCase
         ]);
 
         $response->assertCreated()
-            ->assertJsonPath('data.fill_level_percentage', '61.52')
+            ->assertJsonPath('data.fill_level_percentage', '65.06')
             ->assertJsonPath('data.status', 'normal');
         $this->assertDatabaseHas('tank_readings', [
             'septic_system_id' => $system->id,
-            'fill_level_percentage' => 61.52,
+            'fill_level_percentage' => 65.06,
         ]);
+    }
+
+    public function test_six_centimeters_is_full_and_empty_tank_height_is_zero_percent(): void
+    {
+        $system = SepticSystem::factory()->create([
+            'device_id' => 'TNK-032',
+            'tank_height_cm' => 32,
+        ]);
+
+        foreach ([6 => 100, 32 => 0] as $distance => $expectedFill) {
+            $response = $this->withHeader('X-Sensor-Key', 'local-demo-sensor-key')->postJson('/api/sensor/readings', [
+                'device_id' => $system->device_id,
+                'distance_cm' => $distance,
+            ]);
+
+            $response->assertCreated()
+                ->assertJsonPath('data.fill_level_percentage', number_format($expectedFill, 2, '.', ''));
+        }
     }
 }

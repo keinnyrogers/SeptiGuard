@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\DB;
 
 class SensorReadingService
 {
+    private const FULL_DISTANCE_CM = 6.0;
+
     public function __construct(private ResidentNotificationService $notifications) {}
 
     /**
@@ -86,7 +88,8 @@ class SensorReadingService
     private function calculateFillLevel(SepticSystem $septicSystem, array $payload): float
     {
         if ($septicSystem->tank_height_cm !== null && isset($payload['distance_cm'])) {
-            $fillLevel = (($septicSystem->tank_height_cm - $payload['distance_cm']) / $septicSystem->tank_height_cm) * 100;
+            $usableTankHeight = $septicSystem->tank_height_cm - self::FULL_DISTANCE_CM;
+            $fillLevel = (($septicSystem->tank_height_cm - $payload['distance_cm']) / $usableTankHeight) * 100;
         } else {
             $fillLevel = (float) ($payload['fill_level_percentage'] ?? 0);
         }

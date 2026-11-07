@@ -51,8 +51,9 @@ const char* FIRMWARE_VERSION = "1.0.0";
 // Tank configuration
 // --------------------------------------------------
 
-// Updated from the retained MQTT config after the resident pairs the device.
-float tankHeightCm = 400.0;
+// Distance from the sensor to the tank bottom when empty; updated after pairing.
+float tankHeightCm = 32.0;
+const float FULL_DISTANCE_CM = 6.0;
 const bool SIMULATION_MODE = false;
 
 // Change this number to simulate a different tank level.
@@ -292,6 +293,7 @@ float readRawDistanceCM() {
 
 float readFilteredDistanceCM() {
   const int sampleCount = 5;
+  const int minimumValidSamples = 3;
 
   float total = 0.0;
   int validSamples = 0;
@@ -310,7 +312,7 @@ float readFilteredDistanceCM() {
     delay(60);
   }
 
-  if (validSamples == 0) {
+  if (validSamples < minimumValidSamples) {
     return -1.0;
   }
 
@@ -319,7 +321,8 @@ float readFilteredDistanceCM() {
 
 float calculateFillPercentage(float distanceCM) {
   float fillPercentage =
-    ((tankHeightCm - distanceCM) / tankHeightCm) * 100.0;
+    ((tankHeightCm - distanceCM) /
+      (tankHeightCm - FULL_DISTANCE_CM)) * 100.0;
 
   if (fillPercentage < 0.0) {
     fillPercentage = 0.0;
@@ -547,7 +550,7 @@ void setup() {
   }
 
   pinMode(TRIG_PIN, OUTPUT);
-  pinMode(ECHO_PIN, INPUT);
+  pinMode(ECHO_PIN, INPUT_PULLDOWN);
 
   digitalWrite(TRIG_PIN, LOW);
 
@@ -638,8 +641,8 @@ void loop() {
       distanceCM < MIN_VALID_DISTANCE_CM ||
       distanceCM > MAX_VALID_DISTANCE_CM
     ) {
-      Serial.println("No valid sensor echo. Reading not published.");
-      showDisplay("Sensor unavailable", "Check target/wiring");
+      Serial.println("No consistent sensor echo. Check sensor/wiring. Reading not published.");
+      showDisplay("No sensor echo", "Check sensor/wiring");
       delay(10);
       return;
     }
