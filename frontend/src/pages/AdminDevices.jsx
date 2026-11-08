@@ -1,10 +1,9 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Cpu, Wifi, WifiOff, BatteryLow, Plus, Eye, Menu, X, Check } from "lucide-react";
+import { Search, Cpu, Wifi, WifiOff, Plus, Eye, Menu, X, Check } from "lucide-react";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import AdminNotificationPopover from "@/components/AdminNotificationPopover";
 import DevicePanel from "@/components/DevicePanel";
-import { LOW_BATTERY_THRESHOLD } from "@/data/devices";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useAuth } from "../context/AuthContext.jsx";
 import { createAdminDevice, fetchAdminDevices } from "../api.js";
@@ -19,12 +18,6 @@ const SIGNAL_BADGE = {
   weak: "bg-danger/15 text-danger",
 };
 
-function batteryColor(v) {
-  if (v == null) return "bg-muted";
-  if (v <= LOW_BATTERY_THRESHOLD) return "bg-danger";
-  if (v <= 50) return "bg-warning";
-  return "bg-success";
-}
 function timeAgo(iso) {
   if (!iso || Number.isNaN(new Date(iso).getTime())) return "No readings yet";
   const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
@@ -79,7 +72,6 @@ export default function AdminDevices() {
       total: devices.length,
       online,
       offline: devices.length - online,
-      lowBattery: devices.filter((d) => d.battery != null && d.battery <= LOW_BATTERY_THRESHOLD).length,
     };
   }, [devices]);
 
@@ -125,7 +117,6 @@ export default function AdminDevices() {
     { label: "Total Devices", value: counts.total, sub: "Registered sensors", icon: Cpu, tone: "text-foreground", chip: "bg-primary/15 text-primary" },
     { label: "Online Sensors", value: counts.online, sub: "Reporting normally", icon: Wifi, tone: "text-success", chip: "bg-success/15 text-success" },
     { label: "Offline Devices", value: counts.offline, sub: "No recent reading", icon: WifiOff, tone: "text-danger", chip: "bg-danger/15 text-danger" },
-    { label: "Low Battery", value: counts.lowBattery, sub: `At or below ${LOW_BATTERY_THRESHOLD}%`, icon: BatteryLow, tone: "text-warning", chip: "bg-warning/15 text-warning" },
   ];
   const field = "h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-ring";
   const select = "h-10 rounded-md border border-input bg-card px-3 text-sm outline-none focus:border-ring";
@@ -160,7 +151,7 @@ export default function AdminDevices() {
         </header>
         <div className="px-5 py-6 md:px-8">
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {stats.map((s) => (
             <div key={s.label} className="rounded-lg border border-border bg-card p-4">
               <span className="text-sm text-muted-foreground">{s.label}</span>
@@ -194,10 +185,10 @@ export default function AdminDevices() {
         </div>
 
         {loading ? <div className="mt-4 rounded-lg border border-dashed border-border p-10 text-center text-sm">Loading devices...</div> : loadError ? <div className="mt-4 rounded-lg border border-danger/40 bg-danger/10 p-10 text-center text-sm text-danger">{loadError}</div> : <div className="mt-4 overflow-x-auto rounded-lg border border-border bg-card">
-          <table className="w-full min-w-[950px] text-sm">
+          <table className="w-full min-w-[850px] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                {["Device / Tank ID", "Resident", "Status", "Signal", "Battery", "Last Reading", "Firmware", "Actions"].map((h) => (
+                {["Device / Tank ID", "Resident", "Status", "Signal", "Last Reading", "Firmware", "Actions"].map((h) => (
                   <th key={h} className={`px-4 py-3 font-medium ${h === "Actions" ? "text-right" : ""}`}>{h}</th>
                 ))}
               </tr>
@@ -221,16 +212,6 @@ export default function AdminDevices() {
                       </span>
                     ) : (
                       <span className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground">Not reported</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    {d.status === "offline" || d.battery == null ? (
-                      <span className="text-muted-foreground">--</span>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted"><div className={`h-full ${batteryColor(d.battery)}`} style={{ width: `${d.battery}%` }} /></div>
-                        <span className="text-xs">{d.battery}%</span>
-                      </div>
                     )}
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">{timeAgo(d.last_reading_at)}</td>

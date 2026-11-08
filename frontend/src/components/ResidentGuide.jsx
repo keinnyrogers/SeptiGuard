@@ -36,7 +36,7 @@ const GUIDE_STEPS = [
   },
   {
     title: "Sensor connection",
-    description: "Check whether the device is online, when it last synced, and any reported battery or signal details. An offline sensor may not have a new reading.",
+    description: "Check whether the device is online, when it last synced, and any reported signal details. An offline sensor may not have a new reading.",
     path: "/monitor",
     target: "monitoring-status",
   },

@@ -5,7 +5,7 @@ import {
   Tooltip, ResponsiveContainer,
 } from "recharts";
 import {
-  Activity, Battery, Bell, Bot, CalendarDays, FileWarning, Home,
+  Activity, Bell, Bot, CalendarDays, FileWarning, Home,
   LogOut, Menu, RefreshCw, TriangleAlert,
   UserRound, Wifi, Wrench,
 } from "lucide-react";
@@ -58,7 +58,6 @@ function createSampleData() {
     sensorId: "TNK-001",
     online: true,
     signal: 94,
-    battery: 87,
     lastSync: "Demo sample",
     history: {
       "7": historyFor(6, [55, 58, 61, 64, 66, 68, 70]),
@@ -125,7 +124,6 @@ export default function RealTimeMonitoring() {
         sensorId: result?.device_id ?? "No device linked",
         online: Boolean(measuredAt && measuredAt.getTime() >= Date.now() - 15 * 60 * 1000),
         signal: null,
-        battery: null,
         lastSync: measuredAt ? measuredAt.toLocaleString() : "No readings yet",
         history,
         rangeLabel: {
@@ -395,14 +393,6 @@ export default function RealTimeMonitoring() {
                     {data.sensorId} · Signal {data.signal == null ? "Not reported" : `${data.signal}%`}
                   </p>
                 </div>
-              </div>
-
-              <div className="mt-3 flex items-center justify-between rounded-md border border-border bg-muted/40 px-4 py-3">
-                <span className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Battery className="h-4 w-4" />
-                  Battery
-                </span>
-                <span className="text-xs font-semibold">{data.battery == null ? "Not reported" : `${data.battery}%`}</span>
               </div>
 
               <p className="mt-3 text-[10px] text-muted-foreground">Last sync {data.lastSync}</p>

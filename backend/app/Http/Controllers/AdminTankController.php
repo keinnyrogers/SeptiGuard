@@ -82,7 +82,6 @@ class AdminTankController extends Controller
                     'status' => $online ? 'online' : 'offline',
                     'signal' => $signal,
                     'signal_dbm' => $rssi,
-                    'battery' => null,
                     'last_reading_at' => $reading?->measured_at?->toISOString(),
                     'firmware' => $tank->firmware_version,
                 ];
@@ -190,7 +189,6 @@ class AdminTankController extends Controller
                 'block_lot' => null,
                 'status' => 'offline',
                 'signal' => null,
-                'battery' => null,
                 'last_reading_at' => null,
                 'firmware' => null,
             ],

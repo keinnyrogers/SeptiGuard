@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { X, Cpu, MapPin, User, Save } from "lucide-react";
-import { LOW_BATTERY_THRESHOLD } from "@/data/devices";
 import { formatResidentAddress } from "@/lib/addresses";
 
 const STATUS_BADGE = {
@@ -13,12 +12,6 @@ const SIGNAL_BADGE = {
   weak: "bg-danger/15 text-danger",
 };
 
-function batteryColor(v) {
-  if (v == null) return "bg-muted";
-  if (v <= LOW_BATTERY_THRESHOLD) return "bg-danger";
-  if (v <= 50) return "bg-warning";
-  return "bg-success";
-}
 function fmtDate(iso) {
   return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
@@ -92,19 +85,6 @@ export default function DevicePanel({ device, onClose, onSave }) {
                   <span className="text-muted-foreground">Wi-Fi signal</span>
                   <span>{device.signal_dbm == null ? "Not reported" : `${device.signal_dbm} dBm`}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Battery</span>
-                  {offline || device.battery == null ? (
-                    <span className="text-muted-foreground">--</span>
-                  ) : (
-                    <span>{device.battery}%</span>
-                  )}
-                </div>
-                {!offline && device.battery != null && (
-                  <div className="h-2 overflow-hidden rounded-full bg-muted">
-                    <div className={`h-full ${batteryColor(device.battery)}`} style={{ width: `${device.battery}%` }} />
-                  </div>
-                )}
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Firmware</span>
                   <span className="font-mono text-xs">{device.firmware ?? "Not reported"}</span>

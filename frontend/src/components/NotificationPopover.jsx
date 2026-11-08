@@ -7,7 +7,7 @@ const SAMPLE_NOTIFICATIONS = [
   { icon: FileWarning, tone: "text-warning", title: "Tank level reached 70%", detail: "Consider scheduling maintenance soon.", time: "2h", unread: true },
   { icon: Bot, tone: "text-primary", title: "AI prediction updated", detail: "Estimated 12 days until critical level.", time: "6h", unread: true },
   { icon: Check, tone: "text-success", title: "Sensor calibration complete", detail: "All sensors operating within normal range.", time: "1d", unread: true },
-  { icon: Zap, tone: "text-muted-foreground", title: "Firmware updated to v2.1.4", detail: "Improved accuracy and battery efficiency.", time: "2d", unread: false },
+  { icon: Zap, tone: "text-muted-foreground", title: "Firmware updated to v2.1.4", detail: "Improved accuracy and sensor efficiency.", time: "2d", unread: false },
 ];
 
 const ICONS = {

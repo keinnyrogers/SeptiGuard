@@ -177,7 +177,8 @@ class AdminResidentApiTest extends TestCase
             ->assertJsonPath('data.0.status', 'online')
             ->assertJsonPath('data.0.firmware', '1.0.0')
             ->assertJsonPath('data.0.signal', 'strong')
-            ->assertJsonPath('data.0.signal_dbm', -58);
+            ->assertJsonPath('data.0.signal_dbm', -58)
+            ->assertJsonMissingPath('data.0.battery');
 
         $this->withHeaders($headers)
             ->getJson('/api/admin/complaints')
@@ -286,7 +287,8 @@ class AdminResidentApiTest extends TestCase
             ])
             ->assertCreated()
             ->assertJsonPath('data.device_id', 'TNK-OPTIONAL-001')
-            ->assertJsonPath('data.status', 'offline');
+            ->assertJsonPath('data.status', 'offline')
+            ->assertJsonMissingPath('data.battery');
 
         $this->assertDatabaseHas('septic_systems', [
             'device_id' => 'TNK-OPTIONAL-001',
