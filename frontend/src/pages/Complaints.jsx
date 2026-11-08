@@ -331,7 +331,7 @@ export default function Complaints() {
           </section>
 
           {/* ---------------- COMPLAINT LIST ---------------- */}
-          <div className="space-y-3">
+          <div data-guide-target="complaint-list" className="space-y-3">
             {loading ? (
               <div className="flex min-h-40 flex-col items-center justify-center rounded-lg border border-border bg-card p-8 text-center">
                 <span className="h-8 w-8 animate-spin rounded-full border-2 border-primary/25 border-t-primary" aria-hidden="true" />

@@ -319,7 +319,7 @@ export default function Profile() {
           {demoMode && <p className="w-fit rounded border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-primary">Demo data</p>}
 
           <div className="grid gap-5 xl:grid-cols-[0.75fr_1.6fr]">
-            <div className="space-y-5">
+            <div data-guide-target="profile-account" className="space-y-5">
               <section className="rounded-lg border border-border bg-card p-6 text-center">
                 <div className="relative mx-auto w-fit">
                   {photoUrl
@@ -394,6 +394,7 @@ export default function Profile() {
             </div>
 
             <div className="space-y-5">
+              <div data-guide-target="profile-information" className="space-y-5">
               <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -412,7 +413,7 @@ export default function Profile() {
                 <button onClick={() => setInfoChangePanelOpen(true)} className="mt-3 flex items-center gap-2 text-xs font-medium text-primary"><Mail className="h-3.5 w-3.5" /> Request information change →</button>
               </section>
 
-              <section data-guide-target="profile-preferences" className="rounded-lg border border-border bg-card p-5 sm:p-6">
+              <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
                 <h2 className="flex items-center gap-2 font-display font-semibold"><MapPin className="h-4 w-4 text-primary" /> Address Information</h2>
                 <p className="mt-1 text-xs text-muted-foreground">Property location within the community</p>
                 {demoMode ? <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -423,7 +424,9 @@ export default function Profile() {
                   <EditField label="ZIP Code" value={address.zip} onChange={(v) => { setAddress({ ...address, zip: v }); setDemoAddressSaved(false); }} />
                 </div> : <div className="mt-5 rounded-md border border-border bg-muted/30 p-4"><p className="text-xs text-muted-foreground">Registered address</p><p className="mt-1 text-sm font-medium">{formatResidentAddress(profile?.address ?? user?.address) ?? "No address saved"}</p><button type="button" onClick={() => setInfoChangePanelOpen(true)} className="mt-3 text-xs font-medium text-primary hover:underline">Request an address change through the HOA</button></div>}
               </section>
+              </div>
 
+              <div data-guide-target="profile-preferences" className="space-y-5">
               <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
                 <h2 className="flex items-center gap-2 font-display font-semibold"><Bell className="h-4 w-4 text-primary" /> Preferences</h2>
                 <p className="mt-1 text-xs text-muted-foreground">Customize how you receive updates from the portal</p>
@@ -488,6 +491,7 @@ export default function Profile() {
                     action={<button onClick={signOut} className="flex items-center gap-2 rounded-md bg-danger px-3 py-2 text-xs font-medium text-white"><LogOut className="h-3.5 w-3.5" /> Logout</button>} />
                 </div>
               </section>
+              </div>
             </div>
           </div>
           </>}

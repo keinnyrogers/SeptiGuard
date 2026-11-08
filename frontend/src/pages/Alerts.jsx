@@ -535,6 +535,7 @@ export default function Alerts() {
           </section>
 
           {/* ---------------- NOTIFICATION LIST ---------------- */}
+          <div data-guide-target="alert-list">
           {loading ? (
             <div className="flex min-h-40 flex-col items-center justify-center rounded-lg border border-border bg-card p-10 text-center">
               <span className="h-8 w-8 animate-spin rounded-full border-2 border-primary/25 border-t-primary" aria-hidden="true" />
@@ -606,6 +607,7 @@ export default function Alerts() {
               </div>
             ))
           )}
+          </div>
         </main>
       </div>
     </div>

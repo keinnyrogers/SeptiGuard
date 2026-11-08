@@ -5,50 +5,116 @@ import { useAuth } from "../context/AuthContext.jsx";
 
 const GUIDE_STEPS = [
   {
-    title: "Dashboard",
-    description: "This card shows your tank's latest fill level and status. Sensor connectivity is based on whether a reading arrived within the last 15 minutes.",
+    title: "Tank status",
+    description: "See your latest tank level and its Normal, Warning, or Critical range here. If no sensor is linked or readings are unavailable, the page explains why.",
     path: "/dashboard",
     target: "dashboard-tank",
   },
   {
-    title: "Monitoring",
-    description: "Here you can see the live tank fill level and sensor readings. A sensor with no power or connection cannot send new readings.",
+    title: "Dashboard overview",
+    description: "These summaries show the current fill level and estimated days to critical when data is available. The quick actions open monitoring, complaint submission, and maintenance.",
+    path: "/dashboard",
+    target: "dashboard-summary",
+  },
+  {
+    title: "Quick actions",
+    description: "Use these shortcuts to open detailed monitoring, file a complaint, or request maintenance.",
+    path: "/dashboard",
+    target: "dashboard-actions",
+  },
+  {
+    title: "Recent alerts",
+    description: "This section summarizes the latest updates. Choose View all to search and manage your full notification list.",
+    path: "/dashboard",
+    target: "dashboard-alerts",
+  },
+  {
+    title: "Live tank readings",
+    description: "Review the latest fill level and its status thresholds. Use Refresh when you want to request the latest reading.",
     path: "/monitor",
     target: "monitoring-level",
   },
   {
-    title: "Predictions",
-    description: "This panel estimates when the tank may reach the 80% critical level using recent readings. It may be unavailable when there is not enough recent data.",
+    title: "Sensor connection",
+    description: "Check whether the device is online, when it last synced, and any reported battery or signal details. An offline sensor may not have a new reading.",
+    path: "/monitor",
+    target: "monitoring-status",
+  },
+  {
+    title: "Reading history",
+    description: "Choose 7, 30, or 90 days to inspect past fill readings. The chart can be empty until your linked sensor has sent data.",
+    path: "/monitor",
+    target: "monitoring-history",
+  },
+  {
+    title: "Forecast",
+    description: "This estimate uses recent tank readings to project when the tank may reach the 80% critical level. Forecasts need enough recent data and are not guarantees.",
     path: "/predict",
     target: "prediction-date",
   },
   {
-    title: "Complaints",
-    description: "Use these filters to find complaints by status. Your submitted concerns and their latest updates appear below.",
+    title: "Trend fit and recommendations",
+    description: "Trend fit describes how closely readings match the forecast trend; it is not a probability. Recommended actions can take you to maintenance.",
+    path: "/predict",
+    target: "prediction-insights",
+  },
+  {
+    title: "Find a complaint",
+    description: "Use status tabs, search, and category filters to narrow your complaint list. The counts summarize your submitted reports.",
     path: "/complaints",
     target: "complaint-filters",
   },
   {
-    title: "Maintenance",
-    description: "Review your service history and maintenance requests here. Use the request option on this page to ask the HOA to coordinate service.",
+    title: "Submit and follow up",
+    description: "Use New Complaint in the page header to report an issue. Select a complaint in the list to see its details and status updates.",
+    path: "/complaints",
+    target: "complaint-list",
+  },
+  {
+    title: "Maintenance overview",
+    description: "Review your request count, open requests, and recorded service information. Select Request Maintenance in the page header to ask the HOA to coordinate service.",
+    path: "/maintain",
+    target: "maintenance-summary",
+  },
+  {
+    title: "Maintenance requests",
+    description: "Your requests and their latest statuses appear here. New requests are sent to the HOA for coordination; demo accounts show clearly labeled sample history.",
     path: "/maintain",
     target: "maintenance-requests",
   },
   {
-    title: "Alerts",
-    description: "These filters help you find tank warnings, critical alerts, and other updates. Select an alert to view its details.",
+    title: "Find notifications",
+    description: "Use the tabs, search, and filters to find critical alerts, warnings, complaint updates, and other notifications. Summary cards show unread and recent counts.",
     path: "/alerts",
     target: "alert-filters",
   },
   {
-    title: "Profile and settings",
-    description: "Manage your notification preferences here, alongside your account and tank information. Push notifications require permission on a supported device.",
+    title: "Notification actions",
+    description: "Open an alert's related page, mark notifications as read, or dismiss one from this browser's list with the X. Dismissing does not delete it.",
+    path: "/alerts",
+    target: "alert-list",
+  },
+  {
+    title: "Your account and tank",
+    description: "Review your profile, approval status, and linked tank details here. The page shows a clear empty state if no tank has been linked.",
+    path: "/profile",
+    target: "profile-account",
+  },
+  {
+    title: "Personal information and address",
+    description: "Check your saved contact and address details. Use Request information change to ask the HOA to update them.",
+    path: "/profile",
+    target: "profile-information",
+  },
+  {
+    title: "Preferences and security",
+    description: "Manage available notification preferences, install the portal, change your password, or sign out. Push notifications require an approved account and browser permission.",
     path: "/profile",
     target: "profile-preferences",
   },
 ];
 
-const GUIDE_SEEN_KEY = "septiguard_resident_guide_seen";
+const GUIDE_SEEN_KEY = "septiguard_resident_guide_v2_seen";
 const RESIDENT_PATHS = ["/dashboard", "/monitor", "/predict", "/complaints", "/maintain", "/alerts", "/profile"];
 
 function guideStorageKey(user) {
@@ -57,9 +123,7 @@ function guideStorageKey(user) {
 }
 
 function stepForPath(pathname) {
-  const index = GUIDE_STEPS.findIndex(
-    ({ path }) => pathname === path || pathname.startsWith(`${path}/`),
-  );
+  const index = GUIDE_STEPS.findIndex(({ path }) => pathname === path);
   return Math.max(index, 0);
 }
 
@@ -72,9 +136,7 @@ export default function ResidentGuide() {
   const [spotlightRect, setSpotlightRect] = useState(null);
   const [targetMissing, setTargetMissing] = useState(false);
   const storageKey = guideStorageKey(user);
-  const isResidentPage = RESIDENT_PATHS.some(
-    (path) => pathname === path || pathname.startsWith(`${path}/`),
-  );
+  const isResidentPage = RESIDENT_PATHS.includes(pathname);
   const isResident = isAuthenticated && user?.role === "resident" && isResidentPage;
   const step = GUIDE_STEPS[stepIndex];
 
@@ -89,10 +151,12 @@ export default function ResidentGuide() {
     }
 
     if (!completed) {
-      setStepIndex(stepForPath(pathname));
+      if (!open || GUIDE_STEPS[stepIndex]?.path !== pathname) {
+        setStepIndex(stepForPath(pathname));
+      }
       setOpen(true);
     }
-  }, [isResident, pathname, storageKey]);
+  }, [isResident, open, pathname, stepIndex, storageKey]);
 
   useEffect(() => {
     if (!isResident || !open) return undefined;
@@ -177,6 +241,8 @@ export default function ResidentGuide() {
   const labelTop = spotlightRect
     ? Math.max(8, spotlightRect.top - 38)
     : 0;
+  const nextStep = GUIDE_STEPS[stepIndex + 1];
+  const nextLabel = nextStep?.path === step.path ? "Next tip" : "Next page";
 
   return (
     <>
@@ -272,7 +338,7 @@ export default function ResidentGuide() {
                     onClick={() => goToStep(stepIndex + 1)}
                     className="flex h-9 items-center gap-1 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90"
                   >
-                    Next feature
+                    {nextLabel}
                     <ChevronRight className="h-4 w-4" />
                   </button>
                 ) : (

@@ -269,7 +269,7 @@ export default function Maintain() {
             </p>
           )}
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div data-guide-target="maintenance-summary" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {demoMode ? (
               <>
                 <SummaryCard icon={Wrench} label="Total Services" value={data.history.length} note={`Since ${data.installationDate}`} />

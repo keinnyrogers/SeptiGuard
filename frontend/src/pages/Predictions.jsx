@@ -511,7 +511,7 @@ export default function Predictions() {
             </section>
 
             {/* ============ RIGHT: confidence + recommendations ============ */}
-            <div className="space-y-5">
+            <div data-guide-target="prediction-insights" className="space-y-5">
               {/* Prediction Confidence */}
               <section className="rounded-lg border border-border bg-card p-5">
                 <div className="flex justify-between gap-3">

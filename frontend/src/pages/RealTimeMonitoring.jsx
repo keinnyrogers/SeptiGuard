@@ -368,7 +368,7 @@ export default function RealTimeMonitoring() {
             </section>
 
             {/* Sensor Status */}
-            <section className="rounded-lg border border-border bg-card p-5">
+            <section data-guide-target="monitoring-status" className="rounded-lg border border-border bg-card p-5">
               <div className="flex justify-between gap-3">
                 <div>
                   <h2 className="font-display font-semibold">Sensor Status</h2>
@@ -410,7 +410,7 @@ export default function RealTimeMonitoring() {
           </div>
 
           {/* ---------------- FILL LEVEL HISTORY ---------------- */}
-          <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
+          <section data-guide-target="monitoring-history" className="rounded-lg border border-border bg-card p-5 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <h2 className="font-display font-semibold">Fill Level History</h2>
