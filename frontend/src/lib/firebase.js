@@ -111,24 +111,21 @@ export async function requestFirebasePushToken(onProgress = () => {}) {
     throw new Error("Push notifications are not configured for this portal.");
   }
 
+  if (!("Notification" in window) || !("serviceWorker" in navigator)) {
+    throw new Error("This browser does not support push notifications.");
+  }
+  if (Notification.permission !== "granted") {
+    throw new Error("Grant notification permission before enabling push notifications.");
+  }
+
   onProgress("Checking browser push support…");
-  const supported = await withTimeout(
+  const supportCheck = withTimeout(
     isSupported(),
     10000,
     "Checking browser push support timed out. Reload the page and try again.",
   );
-  if (!("Notification" in window) || !("serviceWorker" in navigator) || !supported) {
+  if (!(await supportCheck)) {
     throw new Error("This browser does not support push notifications.");
-  }
-
-  onProgress("Waiting for notification permission…");
-  const permission = await withTimeout(
-    Notification.requestPermission(),
-    60000,
-    "The browser did not finish the notification permission request. Check the site notification setting and try again.",
-  );
-  if (permission !== "granted") {
-    throw new Error("Notification permission was not granted.");
   }
 
   const app = getApps().length ? getApp() : initializeApp(firebaseConfig);

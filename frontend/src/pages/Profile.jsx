@@ -19,6 +19,7 @@ import {
   registerResidentPushToken,
   removeResidentPushToken,
 } from "../api.js";
+import { requestNotificationPermission } from "../lib/notificationPermission.js";
 import { isFirebaseMessagingConfigured } from "../lib/firebaseConfig.js";
 import { promptAppInstall, subscribeToInstallPrompt } from "../lib/pwaInstall.js";
 import { formatResidentAddress } from "@/lib/addresses";
@@ -209,6 +210,7 @@ export default function Profile() {
     try {
       if (enabled) {
         if (!isApprovedResident) throw new Error("Push notifications are available only to approved resident accounts.");
+        await requestNotificationPermission(setPushProgress);
         const { requestFirebasePushToken } = await import("../lib/firebase.js");
         const pushToken = await requestFirebasePushToken(setPushProgress);
         setPushProgress("Saving device registration to SeptiGuard…");
