@@ -34,7 +34,7 @@ function timeAgo(iso) {
   return `${Math.round(h / 24)} d ago`;
 }
 
-const EMPTY_FORM = { device_id: "", tank_type: "", capacity_liters: "", location: "" };
+const EMPTY_FORM = { device_id: "" };
 
 export default function AdminDevices() {
   const { user, token, logout } = useAuth();
@@ -105,9 +105,6 @@ export default function AdminDevices() {
     try {
       const device = await createAdminDevice(token, {
         device_id: deviceId,
-        tank_type: form.tank_type || null,
-        capacity_liters: form.capacity_liters ? Number(form.capacity_liters) : null,
-        location: form.location || null,
       });
       setDevices((prev) => [...prev, device]);
       setForm(EMPTY_FORM);
@@ -285,16 +282,16 @@ export default function AdminDevices() {
               <button type="button" onClick={() => setFormOpen(false)} aria-label="Close"><X className="h-4 w-4" /></button>
             </div>
             {formError && <p role="alert" className="text-xs text-danger">{formError}</p>}
-            {[
-              ["device_id", "Hardware Device ID (e.g. TNK-A1B2C3D4)", "text"],
-              ["tank_type", "Tank type (optional)", "text"],
-              ["capacity_liters", "Capacity in liters (optional)", "number"],
-              ["location", "Installation location (optional)", "text"],
-            ].map(([k, label, type]) => (
-              <label key={k} className="block text-xs text-muted-foreground">{label}
-                <input type={type} min={0} step={type === "number" ? "0.1" : undefined} required={k === "device_id"} value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} className={`${field} mt-1 text-foreground`} />
-              </label>
-            ))}
+            <label className="block text-xs text-muted-foreground">
+              Hardware Device ID (e.g. TNK-A1B2C3D4)
+              <input
+                type="text"
+                required
+                value={form.device_id}
+                onChange={(e) => setForm({ device_id: e.target.value })}
+                className={`${field} mt-1 text-foreground`}
+              />
+            </label>
             <p className="text-xs text-muted-foreground">Read the ID shown on the device OLED or Serial Monitor. Register the ID here; the resident will enter the tank height while pairing.</p>
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setFormOpen(false)} className="h-9 rounded-md border border-border px-4 text-sm hover:bg-muted">Cancel</button>
