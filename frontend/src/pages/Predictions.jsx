@@ -369,7 +369,7 @@ export default function Predictions() {
 
           <div className="grid gap-5 xl:grid-cols-[1.35fr_1fr]">
             {/* ============ LEFT: Predicted date + curve ============ */}
-            <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
+            <section data-guide-target="prediction-date" className="rounded-lg border border-border bg-card p-5 sm:p-6">
               <div className="flex flex-wrap justify-between gap-3">
                 <div>
                   <h2 className="font-display font-semibold">Predicted Critical Fill Date</h2>

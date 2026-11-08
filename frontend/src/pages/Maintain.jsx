@@ -297,7 +297,7 @@ export default function Maintain() {
             </p>
           </section>
 
-          <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
+          <section data-guide-target="maintenance-requests" className="rounded-lg border border-border bg-card p-5 sm:p-6">
             <h2 className="font-display font-semibold">{demoMode ? "Sample Service History" : "Maintenance Requests"}</h2>
             <p className="mt-1 text-xs text-muted-foreground">
               {demoMode

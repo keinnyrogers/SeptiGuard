@@ -412,7 +412,7 @@ export default function Profile() {
                 <button onClick={() => setInfoChangePanelOpen(true)} className="mt-3 flex items-center gap-2 text-xs font-medium text-primary"><Mail className="h-3.5 w-3.5" /> Request information change →</button>
               </section>
 
-              <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
+              <section data-guide-target="profile-preferences" className="rounded-lg border border-border bg-card p-5 sm:p-6">
                 <h2 className="flex items-center gap-2 font-display font-semibold"><MapPin className="h-4 w-4 text-primary" /> Address Information</h2>
                 <p className="mt-1 text-xs text-muted-foreground">Property location within the community</p>
                 {demoMode ? <div className="mt-5 grid gap-4 md:grid-cols-2">

@@ -1,58 +1,50 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { BookOpen, ChevronLeft, ChevronRight, CircleHelp } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronLeft, ChevronRight, CircleHelp } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "./ui/dialog";
 
 const GUIDE_STEPS = [
   {
     title: "Dashboard",
-    description: "See your tank's latest fill level, status, sensor connection, and recent alerts. The sensor is considered online when it has reported within the last 15 minutes.",
+    description: "This card shows your tank's latest fill level and status. Sensor connectivity is based on whether a reading arrived within the last 15 minutes.",
     path: "/dashboard",
-    action: "View dashboard",
+    target: "dashboard-tank",
   },
   {
     title: "Monitoring",
-    description: "Review recent tank readings and history. If the sensor has not sent a recent reading, the dashboard shows it as offline; it cannot report while it has no power or connection.",
+    description: "Here you can see the live tank fill level and sensor readings. A sensor with no power or connection cannot send new readings.",
     path: "/monitor",
-    action: "Open monitoring",
+    target: "monitoring-level",
   },
   {
     title: "Predictions",
-    description: "View an estimated trend toward the 80% critical level when enough recent readings are available. Predictions may be unavailable when the reading history is insufficient or stale.",
+    description: "This panel estimates when the tank may reach the 80% critical level using recent readings. It may be unavailable when there is not enough recent data.",
     path: "/predict",
-    action: "View predictions",
+    target: "prediction-date",
   },
   {
     title: "Complaints",
-    description: "Submit a complaint with its details and, when needed, a photo. You can return to track its status and any HOA response.",
+    description: "Use these filters to find complaints by status. Your submitted concerns and their latest updates appear below.",
     path: "/complaints",
-    action: "View complaints",
+    target: "complaint-filters",
   },
   {
     title: "Maintenance",
-    description: "Check maintenance information and available service options for your household. Contact the HOA if you need help arranging a service.",
+    description: "Review your service history and maintenance requests here. Use the request option on this page to ask the HOA to coordinate service.",
     path: "/maintain",
-    action: "View maintenance",
+    target: "maintenance-requests",
   },
   {
     title: "Alerts",
-    description: "Find in-portal updates about tank thresholds and complaint changes. Push notifications are optional and require permission on a supported device.",
+    description: "These filters help you find tank warnings, critical alerts, and other updates. Select an alert to view its details.",
     path: "/alerts",
-    action: "View alerts",
+    target: "alert-filters",
   },
   {
     title: "Profile and settings",
-    description: "Review your account and linked tank, manage notification preferences, and request changes to your information. On iPhone or iPad, add SeptiGuard to the Home Screen from Safari to use supported PWA push notifications.",
+    description: "Manage your notification preferences here, alongside your account and tank information. Push notifications require permission on a supported device.",
     path: "/profile",
-    action: "Open profile",
+    target: "profile-preferences",
   },
 ];
 
@@ -64,12 +56,21 @@ function guideStorageKey(user) {
   return identifier ? `${GUIDE_SEEN_KEY}:${identifier}` : null;
 }
 
+function stepForPath(pathname) {
+  const index = GUIDE_STEPS.findIndex(
+    ({ path }) => pathname === path || pathname.startsWith(`${path}/`),
+  );
+  return Math.max(index, 0);
+}
+
 export default function ResidentGuide() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
   const [open, setOpen] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
+  const [spotlightRect, setSpotlightRect] = useState(null);
+  const [targetMissing, setTargetMissing] = useState(false);
   const storageKey = guideStorageKey(user);
   const isResidentPage = RESIDENT_PATHS.some(
     (path) => pathname === path || pathname.startsWith(`${path}/`),
@@ -80,18 +81,77 @@ export default function ResidentGuide() {
   useEffect(() => {
     if (!isResident || !storageKey) return;
 
+    let completed = false;
     try {
-      if (window.localStorage.getItem(storageKey) !== "completed") {
-        setStepIndex(0);
-        setOpen(true);
-      }
+      completed = window.localStorage.getItem(storageKey) === "completed";
     } catch (error) {
       console.error("Could not check the resident guide preference.", error);
     }
-  }, [isResident, storageKey]);
+
+    if (!completed) {
+      setStepIndex(stepForPath(pathname));
+      setOpen(true);
+    }
+  }, [isResident, pathname, storageKey]);
+
+  useEffect(() => {
+    if (!isResident || !open) return undefined;
+
+    let active = true;
+    let attempts = 0;
+    let target = null;
+    let retryTimer;
+
+    const measureTarget = () => {
+      if (!active || !target) return;
+      const rect = target.getBoundingClientRect();
+      setSpotlightRect({
+        top: rect.top - 6,
+        left: rect.left - 6,
+        width: rect.width + 12,
+        height: rect.height + 12,
+      });
+    };
+
+    const findTarget = () => {
+      if (!active) return;
+      target = document.querySelector(`[data-guide-target="${step.target}"]`);
+
+      if (!target && attempts < 30) {
+        attempts += 1;
+        retryTimer = window.setTimeout(findTarget, 100);
+        return;
+      }
+
+      if (!target) {
+        setTargetMissing(true);
+        setSpotlightRect(null);
+        console.error(`Could not find resident guide target "${step.target}".`);
+        return;
+      }
+
+      setTargetMissing(false);
+      target.scrollIntoView({ block: "center", behavior: "smooth" });
+      measureTarget();
+      window.addEventListener("scroll", measureTarget, true);
+      window.addEventListener("resize", measureTarget);
+    };
+
+    setSpotlightRect(null);
+    setTargetMissing(false);
+    findTarget();
+
+    return () => {
+      active = false;
+      window.clearTimeout(retryTimer);
+      window.removeEventListener("scroll", measureTarget, true);
+      window.removeEventListener("resize", measureTarget);
+    };
+  }, [isResident, open, pathname, step.target]);
 
   const closeGuide = () => {
     setOpen(false);
+    setSpotlightRect(null);
     if (!storageKey) return;
 
     try {
@@ -102,15 +162,21 @@ export default function ResidentGuide() {
   };
 
   const openGuide = () => {
-    setStepIndex(0);
+    setStepIndex(stepForPath(pathname));
     setOpen(true);
   };
 
-  const goToFeature = () => {
-    navigate(step.path);
+  const goToStep = (nextIndex) => {
+    const nextStep = GUIDE_STEPS[nextIndex];
+    setStepIndex(nextIndex);
+    if (pathname !== nextStep.path) navigate(nextStep.path);
   };
 
   if (!isResident) return null;
+
+  const labelTop = spotlightRect
+    ? Math.max(8, spotlightRect.top - 38)
+    : 0;
 
   return (
     <>
@@ -125,81 +191,104 @@ export default function ResidentGuide() {
         <span>Guide</span>
       </button>
 
-      <Dialog
-        open={open}
-        onOpenChange={(nextOpen) => {
-          if (nextOpen) setOpen(true);
-          else closeGuide();
-        }}
-      >
-        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader className="pr-7 text-left">
-            <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-primary">
-              <BookOpen className="h-4 w-4" />
-              Resident quick guide
+      {open && (
+        <>
+          {spotlightRect && (
+            <>
+              <div
+                aria-hidden="true"
+                className="pointer-events-none fixed z-[55] rounded-xl border-2 border-primary transition-all duration-300"
+                style={{
+                  top: spotlightRect.top,
+                  left: spotlightRect.left,
+                  width: spotlightRect.width,
+                  height: spotlightRect.height,
+                  boxShadow: "0 0 0 9999px rgba(0, 0, 0, .72), 0 0 24px rgba(0, 229, 255, .45)",
+                }}
+              />
+              <div
+                aria-hidden="true"
+                className="pointer-events-none fixed z-[56] flex items-center gap-1 rounded-full border border-primary/50 bg-card px-3 py-1 text-xs font-semibold text-primary shadow-lg"
+                style={{
+                  top: labelTop,
+                  left: Math.min(
+                    Math.max(8, spotlightRect.left),
+                    Math.max(8, window.innerWidth - 180),
+                  ),
+                }}
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+                {step.title} is here
+              </div>
+            </>
+          )}
+
+          <section
+            role="dialog"
+            aria-label="Resident feature guide"
+            aria-live="polite"
+            className="fixed bottom-4 left-1/2 z-[60] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-xl border border-primary/30 bg-card p-4 text-foreground shadow-2xl sm:p-5"
+          >
+            <div className="flex items-start gap-3">
+              <BookOpen className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="font-display font-semibold">{step.title}</h2>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {stepIndex + 1} of {GUIDE_STEPS.length}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm leading-5 text-muted-foreground">{step.description}</p>
+                {targetMissing && (
+                  <p role="status" className="mt-2 text-xs text-warning">
+                    The feature highlight could not be located. You can still continue the guide.
+                  </p>
+                )}
+              </div>
             </div>
-            <DialogTitle>{step.title}</DialogTitle>
-            <DialogDescription aria-live="polite">
-              Step {stepIndex + 1} of {GUIDE_STEPS.length}
-            </DialogDescription>
-          </DialogHeader>
 
-          <p className="text-sm leading-6 text-foreground">{step.description}</p>
-
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-xs text-muted-foreground">
-              {stepIndex + 1} / {GUIDE_STEPS.length}
-            </span>
-            <button
-              type="button"
-              onClick={goToFeature}
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              {step.action}
-            </button>
-          </div>
-
-          <DialogFooter className="gap-2 sm:justify-between sm:space-x-0">
-            <button
-              type="button"
-              onClick={closeGuide}
-              className="h-10 rounded-md border border-border px-4 text-sm hover:bg-muted"
-            >
-              Skip guide
-            </button>
-            <div className="flex gap-2">
-              {stepIndex > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setStepIndex((current) => current - 1)}
-                  className="flex h-10 items-center gap-1 rounded-md border border-border px-3 text-sm hover:bg-muted"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Back
-                </button>
-              )}
-              {stepIndex < GUIDE_STEPS.length - 1 ? (
-                <button
-                  type="button"
-                  onClick={() => setStepIndex((current) => current + 1)}
-                  className="flex h-10 items-center gap-1 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90"
-                >
-                  Next
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={closeGuide}
-                  className="h-10 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90"
-                >
-                  Finish
-                </button>
-              )}
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+              <button
+                type="button"
+                onClick={closeGuide}
+                className="h-9 rounded-md px-3 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                Skip guide
+              </button>
+              <div className="flex gap-2">
+                {stepIndex > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => goToStep(stepIndex - 1)}
+                    className="flex h-9 items-center gap-1 rounded-md border border-border px-3 text-sm hover:bg-muted"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Back
+                  </button>
+                )}
+                {stepIndex < GUIDE_STEPS.length - 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => goToStep(stepIndex + 1)}
+                    className="flex h-9 items-center gap-1 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90"
+                  >
+                    Next feature
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={closeGuide}
+                    className="h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90"
+                  >
+                    Finish
+                  </button>
+                )}
+              </div>
             </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </section>
+        </>
+      )}
     </>
   );
 }

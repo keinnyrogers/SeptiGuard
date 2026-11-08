@@ -444,7 +444,7 @@ export default function Alerts() {
           </div>
 
           {/* ---------------- FILTER BAR ---------------- */}
-          <section className="rounded-lg border border-border bg-card p-4">
+          <section data-guide-target="alert-filters" className="rounded-lg border border-border bg-card p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap gap-2">
                 <TabButton active={tab === "all"} onClick={() => setTab("all")}>

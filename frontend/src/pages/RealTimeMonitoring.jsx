@@ -317,7 +317,7 @@ export default function RealTimeMonitoring() {
           {/* ---------------- TOP ROW ---------------- */}
           <div className="grid gap-5 xl:grid-cols-[1.55fr_0.9fr]">
             {/* Current Fill Level */}
-            <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
+            <section data-guide-target="monitoring-level" className="rounded-lg border border-border bg-card p-5 sm:p-6">
               <div className="flex flex-wrap justify-between gap-3">
                 <div>
                   <h2 className="font-display font-semibold">Current Fill Level</h2>
