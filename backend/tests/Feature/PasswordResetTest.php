@@ -47,6 +47,9 @@ class PasswordResetTest extends TestCase
             'email' => 'resident@example.test',
             'api_token_hash' => hash('sha256', 'old-api-token'),
         ]);
+        $user->apiTokens()->create([
+            'token_hash' => hash('sha256', 'new-api-token'),
+        ]);
 
         $this->postJson('/api/forgot-password', ['email' => $user->email])->assertOk();
         $resetToken = null;
@@ -72,6 +75,9 @@ class PasswordResetTest extends TestCase
         $user->refresh();
         $this->assertTrue(Hash::check('new-resident-password', $user->password));
         $this->assertNull($user->api_token_hash);
+        $this->assertDatabaseMissing('user_api_tokens', [
+            'user_id' => $user->id,
+        ]);
     }
 
     public function test_password_reset_rejects_a_mismatched_confirmation(): void

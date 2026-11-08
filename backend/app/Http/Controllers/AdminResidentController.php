@@ -110,6 +110,7 @@ class AdminResidentController extends Controller
         abort_unless($user->role === 'resident' && $user->account_status === 'approved', 404);
 
         $user->septicSystem?->update(['user_id' => null]);
+        $user->apiTokens()->delete();
         $user->update([
             'account_status' => 'inactive',
             'api_token_hash' => null,
@@ -151,6 +152,7 @@ class AdminResidentController extends Controller
         }
 
         $user->septicSystem?->update(['user_id' => null]);
+        $user->apiTokens()->delete();
         $user->residentPushTokens()->delete();
         $user->septiNotifications()->delete();
         DB::table('resident_information_change_requests')

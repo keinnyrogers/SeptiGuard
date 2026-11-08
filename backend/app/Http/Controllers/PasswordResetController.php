@@ -39,6 +39,7 @@ class PasswordResetController extends Controller
                     'remember_token' => Str::random(60),
                     'api_token_hash' => null,
                 ])->save();
+                $user->apiTokens()->delete();
 
                 event(new PasswordReset($user));
             },

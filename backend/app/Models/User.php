@@ -60,6 +60,14 @@ class User extends Authenticatable
     }
 
     /**
+     * @return HasMany<UserApiToken, User>
+     */
+    public function apiTokens(): HasMany
+    {
+        return $this->hasMany(UserApiToken::class);
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>

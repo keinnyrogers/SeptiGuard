@@ -414,6 +414,9 @@ class AdminResidentApiTest extends TestCase
             'name' => 'Jordan Resident',
             'email' => 'resident@example.com',
         ]);
+        $resident->apiTokens()->create([
+            'token_hash' => hash('sha256', 'resident-device-token'),
+        ]);
         $profilePhoto = 'resident-profile-photos/'.$resident->id.'/profile.png';
         Storage::disk('local')->put($profilePhoto, 'profile image');
         ResidentProfile::query()->create([
@@ -481,6 +484,9 @@ class AdminResidentApiTest extends TestCase
         $this->assertNotSame('resident@example.com', $resident->email);
         $this->assertNotNull($resident->anonymized_at);
         $this->assertNull($resident->api_token_hash);
+        $this->assertDatabaseMissing('user_api_tokens', [
+            'user_id' => $resident->id,
+        ]);
         $this->assertDatabaseHas('resident_profiles', [
             'user_id' => $resident->id,
             'address' => 'Removed',

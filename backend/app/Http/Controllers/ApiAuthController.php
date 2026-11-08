@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\UserApiToken;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -57,7 +58,7 @@ class ApiAuthController extends Controller
         }
 
         $token = Str::random(80);
-        $user->forceFill(['api_token_hash' => hash('sha256', $token)])->save();
+        $user->apiTokens()->create(['token_hash' => hash('sha256', $token)]);
 
         return response()->json([
             'token' => $token,
@@ -104,6 +105,10 @@ class ApiAuthController extends Controller
         $token = $request->bearerToken();
 
         if ($token) {
+            UserApiToken::query()
+                ->where('token_hash', hash('sha256', $token))
+                ->delete();
+
             User::query()
                 ->where('api_token_hash', hash('sha256', $token))
                 ->update(['api_token_hash' => null]);

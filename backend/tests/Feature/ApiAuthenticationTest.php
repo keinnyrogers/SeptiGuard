@@ -32,6 +32,36 @@ class ApiAuthenticationTest extends TestCase
         $this->assertNotEmpty($response->json('token'));
     }
 
+    public function test_a_user_can_keep_multiple_device_sessions_and_log_out_of_only_one(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'resident',
+            'account_status' => 'approved',
+        ]);
+
+        $firstToken = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ])->assertOk()->json('token');
+
+        $secondToken = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ])->assertOk()->json('token');
+
+        $this->assertNotSame($firstToken, $secondToken);
+        $this->assertDatabaseCount('user_api_tokens', 2);
+
+        $this->withToken($firstToken)->getJson('/api/resident/tank/latest')->assertOk();
+        $this->withToken($secondToken)->getJson('/api/resident/tank/latest')->assertOk();
+
+        $this->withToken($firstToken)->postJson('/api/logout')->assertOk();
+
+        $this->withToken($firstToken)->getJson('/api/resident/tank/latest')->assertUnauthorized();
+        $this->withToken($secondToken)->getJson('/api/resident/tank/latest')->assertOk();
+        $this->assertDatabaseCount('user_api_tokens', 1);
+    }
+
     public function test_approved_hoa_admin_can_log_in_through_the_admin_api(): void
     {
         $admin = User::factory()->create([
