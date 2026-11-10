@@ -94,6 +94,13 @@ const THRESHOLDS = [
 const getStatusKey = (fill) =>
   fill >= 80 ? "critical" : fill >= 70 ? "warning" : "normal";
 
+const getSignalStrength = (rssi) => {
+  if (rssi == null) return null;
+  if (rssi >= -60) return "Strong";
+  if (rssi >= -75) return "Moderate";
+  return "Weak";
+};
+
 export default function RealTimeMonitoring() {
   const { user, token, logout } = useAuth();
   const navigate = useNavigate();
@@ -123,7 +130,7 @@ export default function RealTimeMonitoring() {
         fillLevel,
         sensorId: result?.device_id ?? "No device linked",
         online: Boolean(measuredAt && measuredAt.getTime() >= Date.now() - 15 * 60 * 1000),
-        signal: null,
+        signalDbm: reading?.wifi_rssi_dbm == null ? null : Number(reading.wifi_rssi_dbm),
         lastSync: measuredAt ? measuredAt.toLocaleString() : "No readings yet",
         history,
         rangeLabel: {
@@ -152,10 +159,12 @@ export default function RealTimeMonitoring() {
     return subscribeToTank(liveData.deviceId, (reading) => {
       const measuredAt = reading.measured_at ? new Date(reading.measured_at) : null;
       const fillLevel = Number(reading.fill_level_percentage);
+      const signalDbm = reading.wifi_rssi_dbm == null ? null : Number(reading.wifi_rssi_dbm);
       setLiveData((current) => ({
         ...current,
         fillLevel,
         online: true,
+        signalDbm,
         lastSync: measuredAt ? measuredAt.toLocaleString() : "Just now",
         history: (() => {
           const dateKey = measuredAt ? dateKeyFor(measuredAt) : dateKeyFor(new Date());
@@ -390,7 +399,11 @@ export default function RealTimeMonitoring() {
                     {data.online ? "Connected" : "Disconnected"}
                   </p>
                   <p className="text-[10px] text-muted-foreground">
-                    {data.sensorId} · Signal {data.signal == null ? "Not reported" : `${data.signal}%`}
+                    {data.sensorId} · Signal {
+                      data.signalDbm == null
+                        ? data.signal == null ? "Not reported" : `${data.signal}%`
+                        : `${getSignalStrength(data.signalDbm)} · ${data.signalDbm} dBm`
+                    }
                   </p>
                 </div>
               </div>

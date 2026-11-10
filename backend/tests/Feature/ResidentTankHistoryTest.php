@@ -28,6 +28,7 @@ class ResidentTankHistoryTest extends TestCase
         TankReading::factory()->create([
             'septic_system_id' => $system->id,
             'fill_level_percentage' => 50,
+            'wifi_rssi_dbm' => -88,
             'measured_at' => now()->setTime(15, 0),
         ]);
 
@@ -38,7 +39,8 @@ class ResidentTankHistoryTest extends TestCase
             ->assertJsonPath('data.history.0.date_key', now()->subDay()->toDateString())
             ->assertJsonPath('data.history.0.value', 40)
             ->assertJsonPath('data.history.1.date_key', now()->toDateString())
-            ->assertJsonPath('data.history.1.value', 50);
+            ->assertJsonPath('data.history.1.value', 50)
+            ->assertJsonPath('data.reading.wifi_rssi_dbm', -88);
     }
 
     public function test_resident_tank_response_includes_latest_recorded_desludging_date(): void

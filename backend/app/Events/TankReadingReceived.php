@@ -35,6 +35,7 @@ class TankReadingReceived implements ShouldBroadcastNow
             'device_id' => $this->deviceId,
             'fill_level_percentage' => (float) $this->reading->fill_level_percentage,
             'distance_cm' => $this->reading->distance_cm !== null ? (float) $this->reading->distance_cm : null,
+            'wifi_rssi_dbm' => $this->reading->wifi_rssi_dbm,
             'status' => $this->reading->status,
             'measured_at' => $this->reading->measured_at?->toISOString(),
         ];
