@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { BookOpen, ChevronDown, ChevronLeft, ChevronRight, CircleHelp } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -115,11 +115,17 @@ const GUIDE_STEPS = [
 ];
 
 const GUIDE_SEEN_KEY = "septiguard_resident_guide_v2_seen";
+const GUIDE_AUTO_SHOW_AFTER = Date.parse("2026-11-10T15:24:16+08:00");
 const RESIDENT_PATHS = ["/dashboard", "/monitor", "/predict", "/complaints", "/maintain", "/alerts", "/profile"];
 
 function guideStorageKey(user) {
   const identifier = user?.id ?? user?.email;
   return identifier ? `${GUIDE_SEEN_KEY}:${identifier}` : null;
+}
+
+function isNewAccount(user) {
+  const createdAt = Date.parse(user?.created_at ?? "");
+  return Number.isFinite(createdAt) && createdAt >= GUIDE_AUTO_SHOW_AFTER;
 }
 
 function stepForPath(pathname) {
@@ -131,17 +137,26 @@ export default function ResidentGuide() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
-  const [open, setOpen] = useState(false);
+  const [openFor, setOpenFor] = useState(null);
   const [stepIndex, setStepIndex] = useState(0);
   const [spotlightRect, setSpotlightRect] = useState(null);
   const [targetMissing, setTargetMissing] = useState(false);
+  const autoCheckedKey = useRef(null);
   const storageKey = guideStorageKey(user);
+  const open = Boolean(storageKey && openFor === storageKey);
   const isResidentPage = RESIDENT_PATHS.includes(pathname);
   const isResident = isAuthenticated && user?.role === "resident" && isResidentPage;
   const step = GUIDE_STEPS[stepIndex];
 
   useEffect(() => {
-    if (!isResident || !storageKey) return;
+    if (!isResident || !storageKey) {
+      autoCheckedKey.current = null;
+      return;
+    }
+
+    if (autoCheckedKey.current === storageKey) return;
+    autoCheckedKey.current = storageKey;
+    if (!isNewAccount(user)) return;
 
     let completed = false;
     try {
@@ -151,12 +166,10 @@ export default function ResidentGuide() {
     }
 
     if (!completed) {
-      if (!open || GUIDE_STEPS[stepIndex]?.path !== pathname) {
-        setStepIndex(stepForPath(pathname));
-      }
-      setOpen(true);
+      setStepIndex(stepForPath(pathname));
+      setOpenFor(storageKey);
     }
-  }, [isResident, open, pathname, stepIndex, storageKey]);
+  }, [isResident, pathname, storageKey, user]);
 
   useEffect(() => {
     if (!isResident || !open) return undefined;
@@ -214,7 +227,7 @@ export default function ResidentGuide() {
   }, [isResident, open, pathname, step.target]);
 
   const closeGuide = () => {
-    setOpen(false);
+    setOpenFor(null);
     setSpotlightRect(null);
     if (!storageKey) return;
 
@@ -227,7 +240,7 @@ export default function ResidentGuide() {
 
   const openGuide = () => {
     setStepIndex(stepForPath(pathname));
-    setOpen(true);
+    setOpenFor(storageKey);
   };
 
   const goToStep = (nextIndex) => {
