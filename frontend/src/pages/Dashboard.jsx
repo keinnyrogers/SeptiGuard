@@ -9,7 +9,7 @@ import PairDeviceModal from "../components/PairDeviceModal.jsx";
 import ResidentEmptyPage from "../components/ResidentEmptyPage.jsx";
 import ResidentAvatar from "../components/ResidentAvatar.jsx";
 import { formatResidentAddress } from "@/lib/addresses";
-import { fetchResidentNotifications, fetchResidentTankLatest } from "../api.js";
+import { fetchResidentNotifications, fetchResidentPrediction, fetchResidentTankLatest } from "../api.js";
 import { subscribeToTank } from "../realtime.js";
 
 function createSampleData() {
@@ -49,7 +49,7 @@ const STATUS_META = {
 const NAV = [{icon:Home,label:"Dashboard",active:true},{icon:Activity,label:"Monitor",to:"/monitor"},{icon:Bot,label:"Predict",to:"/predict"},{icon:FileWarning,label:"Complaints",to:"/complaints"},{icon:Wrench,label:"Maintenance",to:"/maintain"},{icon:Bell,label:"Notifications",to:"/alerts"},{icon:UserRound,label:"Profile",to:"/profile"}];
 
 export default function Dashboard() {
-  const { user, token, logout } = useAuth(); const navigate = useNavigate(); const [open,setOpen]=useState(false); const [pairModalOpen, setPairModalOpen] = useState(false); const [liveData, setLiveData] = useState(null); const [refreshKey, setRefreshKey] = useState(0); const [alertsRefreshKey, setAlertsRefreshKey] = useState(0); const [recentAlerts, setRecentAlerts] = useState([]); const [alertsLoading, setAlertsLoading] = useState(!user?.demo_mode && Boolean(token)); const [alertsError, setAlertsError] = useState(""); const [isRefreshing, setIsRefreshing] = useState(false); const [loading, setLoading] = useState(!user?.demo_mode); const [loadError, setLoadError] = useState(""); const first=user?.name?.split(" ")[0] ?? "Resident";
+  const { user, token, logout } = useAuth(); const navigate = useNavigate(); const [open,setOpen]=useState(false); const [pairModalOpen, setPairModalOpen] = useState(false); const [liveData, setLiveData] = useState(null); const [forecast, setForecast] = useState(null); const [refreshKey, setRefreshKey] = useState(0); const [alertsRefreshKey, setAlertsRefreshKey] = useState(0); const [recentAlerts, setRecentAlerts] = useState([]); const [alertsLoading, setAlertsLoading] = useState(!user?.demo_mode && Boolean(token)); const [alertsError, setAlertsError] = useState(""); const [isRefreshing, setIsRefreshing] = useState(false); const [loading, setLoading] = useState(!user?.demo_mode); const [loadError, setLoadError] = useState(""); const first=user?.name?.split(" ")[0] ?? "Resident";
   useEffect(() => {
     if (!user || user.demo_mode || !token) return undefined;
     let active = true;
@@ -90,6 +90,27 @@ export default function Dashboard() {
     const interval = window.setInterval(load, 15000);
     return () => { active = false; window.clearInterval(interval); };
   }, [token, user, refreshKey]);
+
+  useEffect(() => {
+    if (user?.demo_mode || !token) return undefined;
+    let active = true;
+    const load = () => fetchResidentPrediction(token)
+      .then((result) => {
+        if (active) setForecast(result);
+      })
+      .catch((error) => {
+        if (active) {
+          setForecast(null);
+          console.error("Could not load the dashboard tank forecast.", error);
+        }
+      });
+    load();
+    const interval = window.setInterval(load, 60000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [token, user?.demo_mode, refreshKey]);
 
   useEffect(() => {
     if (user?.demo_mode || !liveData?.deviceId) return undefined;
@@ -146,7 +167,11 @@ export default function Dashboard() {
   const level = data?.hasSensor && typeof data.level === "number" ? Math.max(0, Math.min(100, data.level)) : null;
   const status = level === null ? null : statusOf(level);
   const meta = status ? STATUS_META[status] : null;
-  const days = typeof data?.daysUntilFull === "number" ? data.daysUntilFull : null;
+  const days = user?.demo_mode
+    ? data.daysUntilFull
+    : typeof forecast?.days_to_critical === "number"
+      ? forecast.days_to_critical
+      : null;
   const hasLastPumped = Boolean(data?.lastPumped);
   const signOut=async()=>{if(await logout()) navigate("/");};
   const retryTankLoad = () => {
