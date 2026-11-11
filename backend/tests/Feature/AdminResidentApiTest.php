@@ -113,6 +113,7 @@ class AdminResidentApiTest extends TestCase
             ->assertJsonPath('data.summary.critical_tanks', 1)
             ->assertJsonPath('data.tanks.0.id', 'TNK-001')
             ->assertJsonPath('data.tanks.0.capacity', 2750)
+            ->assertJsonPath('data.tanks.0.tank_height_cm', null)
             ->assertJsonPath('data.tanks.0.level', 85)
             ->assertJsonPath('data.tanks.0.block', 3)
             ->assertJsonPath('data.tanks.0.lot', 12)

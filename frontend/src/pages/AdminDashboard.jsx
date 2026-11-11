@@ -28,7 +28,6 @@ export default function AdminDashboard({ navigate }) {
   const [dashboardData, setDashboardData] = useState(null);
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
-  const soon = (name) => window.alert(`${name} will be connected in the next step.`);
   const signOut = async () => {
     if (await logout()) routerNavigate("/admin");
   };
@@ -214,7 +213,7 @@ export default function AdminDashboard({ navigate }) {
           </section>
         </main>
       </div>
-      <TankPanel tank={selectedTank} onClose={() => setSelectedTank(null)} onAction={soon} />
+      <TankPanel tank={selectedTank} onClose={() => setSelectedTank(null)} />
       <DispatchModal
         tank={dispatchTank}
         onClose={() => setDispatchTank(null)}

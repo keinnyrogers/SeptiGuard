@@ -230,6 +230,7 @@ class AdminTankController extends Controller
             'days_to_critical' => $forecast['days_to_critical'],
             'installed' => $tank->installation_date?->toISOString(),
             'capacity' => $tank->capacity_liters === null ? null : (float) $tank->capacity_liters,
+            'tank_height_cm' => $tank->tank_height_cm === null ? null : (float) $tank->tank_height_cm,
             'location' => $tank->location,
             'lastDesludged' => $tank->latestDesludging?->performed_on?->toDateString(),
         ];

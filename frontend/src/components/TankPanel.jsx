@@ -29,7 +29,7 @@ function Row({ label, value }) {
 /**
  * Reusable tank details drawer. Used by the Dashboard and the Tanks page.
  * Expects a tank object shaped like the septic_systems row:
- * { id, resident, block, lot, address, level, status, forecast_status, days_to_critical, installed, lastDesludged, capacity }
+ * { id, resident, block, lot, address, level, status, forecast_status, days_to_critical, tank_height_cm }
  */
 function localDateInputValue() {
   const now = new Date();
@@ -37,7 +37,7 @@ function localDateInputValue() {
   return localDate.toISOString().slice(0, 10);
 }
 
-export default function TankPanel({ tank, onClose, onAction = () => {}, onRecordDesludging }) {
+export default function TankPanel({ tank, onClose, onRecordDesludging }) {
   const [isVisible, setIsVisible] = useState(false);
   const [performedOn, setPerformedOn] = useState(localDateInputValue);
   const [savingDesludging, setSavingDesludging] = useState(false);
@@ -74,16 +74,6 @@ export default function TankPanel({ tank, onClose, onAction = () => {}, onRecord
     : tank.forecast_status === "ready" && Number.isInteger(tank.days_to_critical)
       ? `in ${tank.days_to_critical} days`
       : "Unavailable";
-  const actionLabel = status === "critical" ? "Dispatch desludging" : "Schedule desludging";
-  const dateLabel = tank.lastDesludged
-    ? new Date(`${tank.lastDesludged}T00:00:00`).toLocaleDateString()
-    : "Not recorded";
-  const installedLabel = tank.installed
-    ? new Date(tank.installed).toLocaleDateString()
-    : "Not recorded";
-  const capacityLabel = tank.capacity != null
-    ? `${Number(tank.capacity).toLocaleString()} L`
-    : "Not recorded";
 
   const circ = 2 * Math.PI * 42;
   const dash = (tank.level / 100) * circ;
@@ -153,10 +143,9 @@ export default function TankPanel({ tank, onClose, onAction = () => {}, onRecord
           <section className="space-y-3 rounded-lg border border-border bg-background p-4">
             <h3 className="text-sm font-semibold">System details</h3>
             <Row label="Device / Tank ID" value={tank.id} />
-            <Row label="Capacity" value={capacityLabel} />
-            <Row label="Installed" value={installedLabel} />
-            <Row label="Last desludged" value={dateLabel} />
-            {tank.date && <Row label="Last update" value={tank.date} />}
+            {tank.tank_height_cm != null && (
+              <Row label="Tank height" value={`${Number(tank.tank_height_cm).toLocaleString()} cm`} />
+            )}
           </section>
 
           {onRecordDesludging && (
@@ -216,13 +205,6 @@ export default function TankPanel({ tank, onClose, onAction = () => {}, onRecord
         <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-border bg-card px-5 py-4 sm:flex-row sm:justify-end">
           <button type="button" onClick={onClose} className="h-10 w-full rounded-md border border-border px-4 text-sm hover:bg-muted sm:w-auto">
             Close
-          </button>
-          <button
-            type="button"
-            onClick={() => onAction(`${actionLabel} for ${tank.id}`)}
-            className="h-10 w-full rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90 sm:w-auto"
-          >
-            {actionLabel}
           </button>
         </footer>
       </aside>

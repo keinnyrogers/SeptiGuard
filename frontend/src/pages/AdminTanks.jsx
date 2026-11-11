@@ -331,10 +331,6 @@ export default function AdminTanks() {
             <TankPanel
               tank={selectedTank}
               onClose={() => setSelectedTank(null)}
-              onAction={(label) => {
-                soon(label);
-                setSelectedTank(null);
-              }}
               onRecordDesludging={handleRecordDesludging}
             />
           )}
