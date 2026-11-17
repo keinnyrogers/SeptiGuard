@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\DB;
 
 class SensorReadingService
 {
-    private const FULL_DISTANCE_CM = 6.0;
+    private const FULL_DISTANCE_CM = 0.0;
 
     public function __construct(private ResidentNotificationService $notifications) {}
 

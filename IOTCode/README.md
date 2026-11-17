@@ -1,5 +1,19 @@
 # SeptiGuard ESP32 firmware
 
+## Simulated readings
+
+The firmware starts in simulation mode, so it can publish test readings without
+an ultrasonic sensor connected. It still needs Wi-Fi and MQTT connectivity.
+Open the Arduino Serial Monitor at `115200` baud and enter `D=<distance_cm>` to
+set the simulated sensor-to-water distance; for example, `D=20`. Each update
+publishes immediately, and later readings continue every five seconds.
+
+With the default 25 cm tank height and no full-distance offset, `D=25` represents
+empty and `D=0` represents full. Actual ultrasonic sensors have a minimum
+measurable distance, so they may not reliably detect water all the way to 0 cm.
+To return to live sensor readings, set
+`SIMULATION_MODE` to `false` in `IOTCode.ino`, then upload the firmware again.
+
 ## Wi-Fi and OTA setup
 
 1. Copy `secrets.example.h` to `secrets.h` in this folder. The local `secrets.h` is ignored by Git.

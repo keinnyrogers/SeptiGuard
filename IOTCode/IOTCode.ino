@@ -52,12 +52,12 @@ const char* FIRMWARE_VERSION = "1.0.0";
 // --------------------------------------------------
 
 // Distance from the sensor to the tank bottom when empty; updated after pairing.
-float tankHeightCm = 32.0;
-const float FULL_DISTANCE_CM = 6.0;
-const bool SIMULATION_MODE = false;
+float tankHeightCm = 25.0;
+const float FULL_DISTANCE_CM = 0.0;
+const bool SIMULATION_MODE = true;
 
 // Change this number to simulate a different tank level.
-float SIMULATED_DISTANCE_CM = 100.0;
+float SIMULATED_DISTANCE_CM = 20.0;
 bool publishReadingNow = false;
 
 // SeptiGuard thresholds
@@ -252,7 +252,7 @@ void showReading(float distanceCM, float fillPercentage, const char* status) {
 
   display.setTextSize(2);
   display.setCursor(0, 18);
-  display.print(fillPercentage, 1);
+  display.print(fillPercentage, 2);
   display.println("%");
 
   display.setTextSize(1);
@@ -513,7 +513,7 @@ void publishReading(
   document["device_id"] = DEVICE_ID;
   document["distance_cm"] = round(distanceCM * 10.0) / 10.0;
   document["fill_level_percentage"] =
-    round(fillPercentage * 10.0) / 10.0;
+    round(fillPercentage * 100.0) / 100.0;
   document["status"] = status;
   document["source"] = SIMULATION_MODE ? "simulated" : "sensor";
   document["wifi_rssi_dbm"] = WiFi.RSSI();
@@ -648,6 +648,9 @@ void loop() {
     }
   }
 
+  // Match the rounded distance sent to the server before calculating fill.
+  distanceCM = round(distanceCM * 10.0) / 10.0;
+
   float fillPercentage =
     calculateFillPercentage(distanceCM);
 
@@ -658,7 +661,7 @@ void loop() {
   Serial.print(distanceCM, 1);
 
   Serial.print(" cm | Fill: ");
-  Serial.print(fillPercentage, 1);
+  Serial.print(fillPercentage, 2);
 
   Serial.print("% | Status: ");
   Serial.println(status);
